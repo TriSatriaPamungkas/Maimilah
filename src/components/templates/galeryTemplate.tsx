@@ -18,7 +18,7 @@ const Galery = () => {
               className="relative h-64 rounded-lg overflow-hidden shadow-lg"
             >
               <Image
-                src={`/asset/galery${index + 1}.jpg`}
+                src={`/asset/background.jpg`}
                 alt={`Galeri Kegiatan ${index + 1}`}
                 fill
                 className="object-cover"
