@@ -1,5 +1,4 @@
 "use client";
-// src/components/molecules/loginForm.tsx
 import React, { useState } from "react";
 import { useRouter } from "next/navigation";
 import { signIn } from "next-auth/react";
@@ -12,8 +11,6 @@ export const LoginForm: React.FC = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
-
-  // ✅ Toast state
   const [showSuccess, setShowSuccess] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -32,16 +29,16 @@ export const LoginForm: React.FC = () => {
         setError(result.error);
         setIsLoading(false);
       } else if (result?.ok) {
-        // ✅ Login berhasil - Tampilkan toast
         setShowSuccess(true);
-
-        // ✅ Redirect setelah 2 detik
         setTimeout(() => {
           router.push("/admin/dashboard");
-          router.refresh();
-        }, 2000);
+        }, 1500);
+      } else {
+        setError("Login gagal, coba ulangi.");
+        setIsLoading(false);
       }
     } catch (err) {
+      console.error("Login error:", err);
       setError("Terjadi kesalahan saat login. Silakan coba lagi.");
       setIsLoading(false);
     }
@@ -53,16 +50,13 @@ export const LoginForm: React.FC = () => {
 
   return (
     <>
-      {/* ✅ Success Toast - Simple version */}
       {showSuccess && (
         <div className="fixed top-4 right-4 bg-green-500 text-white px-6 py-4 rounded-lg shadow-lg z-[9999] animate-in slide-in-from-right-8 duration-300">
           <div className="flex items-center gap-3">
-            <CheckCircle size={24} className="text-white" />
+            <CheckCircle size={24} />
             <div>
               <p className="font-semibold">Login Berhasil!</p>
-              <p className="text-sm text-green-100">
-                Selamat datang kembali, {form.username}
-              </p>
+              <p className="text-sm">Selamat datang kembali, {form.username}</p>
             </div>
           </div>
         </div>
@@ -70,16 +64,14 @@ export const LoginForm: React.FC = () => {
 
       <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
         <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-6 relative">
-          {/* Close Button */}
           <button
             onClick={handleClose}
-            className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 transition-colors"
+            className="absolute top-4 right-4 text-gray-400 hover:text-gray-600"
             aria-label="Close"
           >
             <X size={20} />
           </button>
 
-          {/* Header */}
           <div className="text-center mb-6">
             <div className="mx-auto h-16 w-16 bg-green-600 rounded-full flex items-center justify-center mb-4">
               <svg
@@ -109,47 +101,41 @@ export const LoginForm: React.FC = () => {
           )}
 
           <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Username
-              </label>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Username
+            </label>
+            <input
+              type="text"
+              value={form.username}
+              onChange={(e) => setForm({ ...form, username: e.target.value })}
+              required
+              disabled={isLoading}
+              placeholder="Masukkan username"
+              className="w-full border border-gray-300 rounded-lg px-3 py-3 text-sm focus:ring-2 focus:ring-green-500 focus:border-transparent disabled:bg-gray-100 disabled:cursor-not-allowed"
+            />
+
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Password
+            </label>
+            <div className="relative">
               <input
-                type="text"
-                value={form.username}
-                onChange={(e) => setForm({ ...form, username: e.target.value })}
+                type={showPassword ? "text" : "password"}
+                value={form.password}
+                onChange={(e) => setForm({ ...form, password: e.target.value })}
                 required
                 disabled={isLoading}
-                className="w-full border border-gray-300 rounded-lg px-3 py-3 text-sm text-black focus:ring-2 focus:ring-green-500 focus:border-transparent disabled:bg-gray-100 disabled:cursor-not-allowed"
-                placeholder="Masukkan username"
+                placeholder="Masukkan password"
+                className="w-full border border-gray-300 rounded-lg px-3 py-3 pr-10 text-sm focus:ring-2 focus:ring-green-500 focus:border-transparent disabled:bg-gray-100 disabled:cursor-not-allowed"
               />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Password
-              </label>
-              <div className="relative">
-                <input
-                  type={showPassword ? "text" : "password"}
-                  value={form.password}
-                  onChange={(e) =>
-                    setForm({ ...form, password: e.target.value })
-                  }
-                  required
-                  disabled={isLoading}
-                  className="w-full border border-gray-300 rounded-lg px-3 py-3 text-sm text-black focus:ring-2 focus:ring-green-500 focus:border-transparent disabled:bg-gray-100 disabled:cursor-not-allowed pr-10"
-                  placeholder="Masukkan password"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  disabled={isLoading}
-                  className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 disabled:cursor-not-allowed"
-                  aria-label={showPassword ? "Hide password" : "Show password"}
-                >
-                  {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
-                </button>
-              </div>
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                disabled={isLoading}
+                className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 disabled:cursor-not-allowed"
+                aria-label={showPassword ? "Hide password" : "Show password"}
+              >
+                {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+              </button>
             </div>
 
             <button
@@ -168,11 +154,8 @@ export const LoginForm: React.FC = () => {
             </button>
           </form>
 
-          {/* Info untuk developer */}
-          <div className="mt-4 text-center">
-            <p className="text-xs text-gray-500">
-              Sistem menggunakan NextAuth.js & MongoDB
-            </p>
+          <div className="mt-4 text-center text-xs text-gray-500">
+            Sistem menggunakan NextAuth.js & MongoDB
           </div>
         </div>
       </div>

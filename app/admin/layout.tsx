@@ -1,7 +1,8 @@
 "use client";
-// app/admin/layout.tsx
+
 import { useSession } from "next-auth/react";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
+import { useEffect } from "react";
 import AdminSidebar from "@/src/components/organism/adminSidebar";
 import { SessionTimeoutHandler } from "@/src/components/molecules/SessionTimeoutHandler";
 
@@ -12,8 +13,18 @@ export default function AdminLayout({
 }) {
   const { status } = useSession();
   const pathname = usePathname();
+  const router = useRouter();
 
-  // Loading state
+  // Redirect jika belum auth dan bukan di halaman login
+  useEffect(() => {
+    if (status === "unauthenticated" && pathname !== "/admin/login") {
+      // redirect ke halaman login dengan callbackUrl current page
+      router.replace(
+        `/admin/login?callbackUrl=${encodeURIComponent(pathname)}`
+      );
+    }
+  }, [status, pathname, router]);
+
   if (status === "loading") {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
@@ -25,12 +36,11 @@ export default function AdminLayout({
     );
   }
 
-  // Jika di login page, render tanpa sidebar (login page handle sendiri)
+  // Halaman login tetap tanpa sidebar
   if (pathname === "/admin/login") {
     return <>{children}</>;
   }
 
-  // Jika authenticated dan bukan login page, show sidebar + content + session handler
   if (status === "authenticated") {
     return (
       <>
@@ -40,13 +50,12 @@ export default function AdminLayout({
             <div className="max-w-7xl mx-auto">{children}</div>
           </main>
         </div>
-        {/* ✅ Session Timeout Handler - only show when authenticated */}
         <SessionTimeoutHandler />
       </>
     );
   }
 
-  // Fallback: unauthenticated di non-login page (middleware akan redirect)
+  // state fallback saat redirect sedang berlangsung
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50">
       <div className="text-center">
