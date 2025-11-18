@@ -1,4 +1,3 @@
-// app/api/auth/[...nextauth]/route.ts
 import NextAuth, { NextAuthOptions } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
 import { MongoClient } from "mongodb";
@@ -71,7 +70,6 @@ export const authOptions: NextAuthOptions = {
         try {
           const db = await connectToDatabase();
 
-          // Cari user berdasarkan username di collection 'users'
           const user = await db.collection("users").findOne({
             username: credentials.username,
           });
@@ -80,7 +78,6 @@ export const authOptions: NextAuthOptions = {
             throw new Error("Username tidak ditemukan");
           }
 
-          // Verify password dengan bcrypt
           const isPasswordValid = await bcrypt.compare(
             credentials.password,
             user.password
@@ -90,7 +87,6 @@ export const authOptions: NextAuthOptions = {
             throw new Error("Password salah");
           }
 
-          // Return user object (akan disimpan di JWT token)
           return {
             id: user._id.toString(),
             username: user.username,
@@ -108,25 +104,30 @@ export const authOptions: NextAuthOptions = {
 
   callbacks: {
     async jwt({ token, user }) {
-      // Saat pertama login, simpan data user ke token
       if (user) {
         token.id = user.id;
         token.username = user.username;
         token.role = user.role;
       }
-
-      // ✅ Always return token with required properties
       return token;
     },
 
     async session({ session, token }) {
-      // Tambahkan data dari token ke session
       if (token && session.user) {
         session.user.id = token.id as string;
         session.user.username = token.username as string;
         session.user.role = token.role as string;
       }
       return session;
+    },
+
+    async redirect({ url, baseUrl }) {
+      // Jika url adalah relative atau dari baseUrl, izinkan redirect
+      if (url.startsWith(baseUrl)) {
+        return url;
+      }
+      // Default redirect ke dashboard
+      return baseUrl + "/admin/dashboard";
     },
   },
 
@@ -137,7 +138,7 @@ export const authOptions: NextAuthOptions = {
 
   session: {
     strategy: "jwt",
-    maxAge: 4 * 60 * 60, // ✅ 4 hours in seconds
+    maxAge: 4 * 60 * 60,
   },
 
   secret: process.env.NEXTAUTH_SECRET,
