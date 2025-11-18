@@ -136,7 +136,7 @@ export default function EventPage() {
       </button>
 
       {/* 🟢 Hero Section */}
-      <section className="bg-linear-to-br from-green-600 to-green-800 text-white py-20 md:py-23 px-4">
+      <section className="bg-linear-to-br from-green-600 to-green-800 text-white py-23 md:py-26 px-4">
         <div className="max-w-6xl mx-auto text-center">
           <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold mb-4 md:mb-6">
             Event Maimilah
@@ -166,7 +166,7 @@ export default function EventPage() {
       </section>
 
       {/* 🧭 Search & Filter Section */}
-      <section className="py-6 md:py-8 px-4 bg-white border-b sticky top-0 z-10 shadow-sm">
+      <section className="py-3 md:py-5 px-4 bg-white border-b sticky top-0 z-10 shadow-sm">
         <div className="max-w-6xl mx-auto flex flex-col md:flex-row gap-3 md:gap-4">
           {/* Search Bar */}
           <div className="flex-1 relative">
@@ -186,7 +186,7 @@ export default function EventPage() {
               <button
                 key={t}
                 onClick={() => setFilter(t)}
-                className={`px-4 md:px-6 py-2.5 md:py-3 rounded-lg font-medium transition-all whitespace-nowrap text-sm md:text-base ${
+                className={`px-4 md:px-6 py-2.5 md:py-3  rounded-lg font-medium transition-all whitespace-nowrap text-sm md:text-base ${
                   filter === t
                     ? "bg-green-600 text-white shadow-lg"
                     : "bg-gray-100 text-gray-700 hover:bg-gray-200"

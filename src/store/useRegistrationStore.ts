@@ -2,6 +2,8 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import { EventSummary, EventSchedule } from "./useEventStore";
+import { logActivity } from "@/src/store/useActivityStore"; // ✅ Import
+import { ActivityType } from "@/src/models/activity"; // ✅ Import
 
 // 🔹 Struktur tanggal dan kuota
 interface AvailableDate {
@@ -20,7 +22,7 @@ interface Participant {
   eventId: string;
   name: string;
   email: string;
-  phone: string; // ✅ Tambah field phone
+  phone: string;
   domisili: string;
   source: string;
   reason: string;
@@ -53,7 +55,7 @@ export const useRegistrationStore = create<RegistrationState>()(
       isLoading: false,
       error: null,
 
-      // 🔹 Register ke event (sinkron ke API)
+      // 🔹 Register ke event (sinkron ke API) - UPDATED WITH ACTIVITY LOG
       registerParticipant: async (eventId, data) => {
         try {
           set({ isLoading: true, error: null });
@@ -62,7 +64,7 @@ export const useRegistrationStore = create<RegistrationState>()(
             eventId,
             name: data.name,
             email: data.email,
-            phone: data.phone, // ✅ Phone field
+            phone: data.phone,
             domisili: data.domisili,
             source: data.source,
             reason: data.reason,
@@ -89,7 +91,7 @@ export const useRegistrationStore = create<RegistrationState>()(
             eventId,
             name: payload.name,
             email: payload.email,
-            phone: payload.phone, // ✅ Save phone
+            phone: payload.phone,
             domisili: payload.domisili,
             source: payload.source,
             reason: payload.reason,
@@ -111,6 +113,28 @@ export const useRegistrationStore = create<RegistrationState>()(
             availableDates: updatedDates,
             isLoading: false,
           }));
+
+          // ✅ LOG ACTIVITY - Ambil event title dari useEventStore
+          try {
+            // Dynamic import untuk menghindari circular dependency
+            const { useEventStore } = await import("@/src/store/useEventStore");
+            const event = useEventStore.getState().getEventById(eventId);
+
+            if (event) {
+              logActivity(
+                ActivityType.PARTICIPANT_REGISTERED,
+                `Seseorang telah mendaftar di: ${event.title}`,
+                {
+                  eventId: eventId,
+                  participantName: payload.name,
+                }
+              );
+              console.log("✅ Activity logged for participant registration");
+            }
+          } catch (logErr) {
+            console.error("⚠️ Failed to log activity:", logErr);
+            // Don't throw, activity logging is not critical
+          }
         } catch (err: any) {
           console.error("❌ Error registerParticipant:", err);
           set({ error: err.message, isLoading: false });
@@ -135,7 +159,7 @@ export const useRegistrationStore = create<RegistrationState>()(
               eventId: p.eventId,
               name: p.name,
               email: p.email,
-              phone: p.phone || "", // ✅ Tambah phone
+              phone: p.phone || "",
               domisili: p.domisili || "",
               source: p.source || "",
               reason: p.reason || "",
@@ -178,7 +202,6 @@ export const useRegistrationStore = create<RegistrationState>()(
 
       // 🔹 Inisialisasi tanggal event (buat kuota per tanggal)
       initializeEventDates: (event) => {
-        // Gunakan quota dari event.quota, bukan dari schedule item
         const generatedDates = generateAvailableDates(
           event.schedule,
           event.quota
@@ -198,8 +221,7 @@ export const useRegistrationStore = create<RegistrationState>()(
   )
 );
 
-// 🔹 Helper generate tanggal dari jadwal event - FIXED
-// Quota diambil dari EventSummary.quota, bukan dari schedule item
+// 🔹 Helper generate tanggal dari jadwal event
 const generateAvailableDates = (
   schedule: EventSchedule,
   eventQuota: number
@@ -207,7 +229,7 @@ const generateAvailableDates = (
   if (schedule.type === "selected") {
     return schedule.schedule.map((session) => ({
       date: session.date,
-      quota: eventQuota, // ✅ Gunakan quota dari event level
+      quota: eventQuota,
       booked: 0,
       sessionInfo: {
         startTime: session.startTime,
@@ -222,7 +244,7 @@ const generateAvailableDates = (
     for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
       dates.push({
         date: d.toISOString().split("T")[0],
-        quota: eventQuota, // ✅ Gunakan quota dari event level
+        quota: eventQuota,
         booked: 0,
         sessionInfo: {
           startTime: schedule.startTime,

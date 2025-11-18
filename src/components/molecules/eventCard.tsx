@@ -1,8 +1,8 @@
 "use client";
-import React from "react";
+import React, { useState, useEffect } from "react";
 import { Button } from "@/src/components/atoms/button";
 import { Badge } from "@/src/components/atoms/badge";
-import { EventSummary, useEventStore } from "@/src/store/useEventStore";
+import { EventSummary } from "@/src/store/useEventStore";
 
 interface EventCardProps {
   event: EventSummary;
@@ -11,21 +11,19 @@ interface EventCardProps {
   variant?: "user" | "admin";
 }
 
+interface ParticipantData {
+  _id: string;
+  selectedDates?: string[];
+}
+
 export const EventCard: React.FC<EventCardProps> = ({
   event,
   onViewDetails,
   onRegister,
   variant = "user",
 }) => {
-  const getParticipantsCount = useEventStore(
-    (state) => state.getParticipantsCount
-  );
-
-  // only call getParticipantsCount when event.id is defined
-  const participantsCount =
-    event.id || event._id
-      ? getParticipantsCount(event._id || event.id || "")
-      : 0;
+  const [bookedSlots, setBookedSlots] = useState(0);
+  const [isLoadingSlots, setIsLoadingSlots] = useState(false);
 
   // 🆕 Calculate number of days for the event
   const getNumberOfDays = (): number => {
@@ -37,7 +35,7 @@ export const EventCard: React.FC<EventCardProps> = ({
       const startDate = new Date(event.schedule.startDate);
       const endDate = new Date(event.schedule.endDate);
       const diffTime = Math.abs(endDate.getTime() - startDate.getTime());
-      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1; // +1 to include both start and end date
+      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
       return diffDays;
     } else if (event.schedule.type === "selected" && event.schedule.schedule) {
       return event.schedule.schedule.length;
@@ -48,8 +46,61 @@ export const EventCard: React.FC<EventCardProps> = ({
 
   const numberOfDays = getNumberOfDays();
   const totalQuota = event.quota * numberOfDays;
-  const quotaPercentage =
-    totalQuota > 0 ? (participantsCount / totalQuota) * 100 : 0;
+
+  // 🆕 Fetch participant data untuk hitung total booked slots
+  useEffect(() => {
+    const fetchBookedSlots = async () => {
+      if (!event.participants || event.participants.length === 0) {
+        setBookedSlots(0);
+        return;
+      }
+
+      setIsLoadingSlots(true);
+      try {
+        // Fetch semua participant data
+        const participantPromises = event.participants.map((participantId) =>
+          fetch(`/api/participant/${participantId}`)
+            .then((res) => (res.ok ? res.json() : null))
+            .catch(() => null)
+        );
+
+        const results = await Promise.all(participantPromises);
+
+        // Hitung total booked slots
+        const total = results.reduce((sum, result) => {
+          if (!result || !result.data) {
+            // Jika data tidak ada, anggap booking semua hari
+            return sum + numberOfDays;
+          }
+
+          const participant: ParticipantData = result.data;
+          // Jika ada selectedDates, hitung jumlahnya
+          if (
+            participant.selectedDates &&
+            Array.isArray(participant.selectedDates)
+          ) {
+            return sum + participant.selectedDates.length;
+          }
+
+          // Jika tidak ada selectedDates, anggap booking semua hari
+          return sum + numberOfDays;
+        }, 0);
+
+        setBookedSlots(total);
+      } catch (error) {
+        console.error("Error fetching booked slots:", error);
+        // Fallback: anggap setiap participant booking semua hari
+        setBookedSlots((event.participants?.length || 0) * numberOfDays);
+      } finally {
+        setIsLoadingSlots(false);
+      }
+    };
+
+    fetchBookedSlots();
+  }, [event.participants, event._id, event.id, numberOfDays]);
+
+  const remainingQuota = totalQuota - bookedSlots;
+  const quotaPercentage = totalQuota > 0 ? (bookedSlots / totalQuota) * 100 : 0;
 
   // format tanggal ke gaya Indo
   const formatDate = (d: string) =>
@@ -131,7 +182,6 @@ export const EventCard: React.FC<EventCardProps> = ({
         </div>
       );
     } else if (event.schedule.type === "selected" && event.schedule.schedule) {
-      // Ambil tanggal pertama saja untuk compact view
       const firstSchedule = event.schedule.schedule[0];
       const hasMore = event.schedule.schedule.length > 1;
 
@@ -191,8 +241,14 @@ export const EventCard: React.FC<EventCardProps> = ({
         {/* Progress Bar - Fixed height */}
         <div className="mb-4">
           <div className="flex justify-between text-xs text-gray-600 mb-1.5">
-            <span>
-              Terisi: {participantsCount} / {totalQuota} peserta
+            <span className="font-medium">
+              {isLoadingSlots ? (
+                "Memuat..."
+              ) : (
+                <>
+                  Kuota Tersisa: {remainingQuota} dari {totalQuota}
+                </>
+              )}
             </span>
             <span className="font-medium">{Math.round(quotaPercentage)}%</span>
           </div>
@@ -208,6 +264,11 @@ export const EventCard: React.FC<EventCardProps> = ({
               style={{ width: `${Math.min(quotaPercentage, 100)}%` }}
             ></div>
           </div>
+          {!isLoadingSlots && (
+            <div className="text-xs text-gray-500 mt-1">
+              {bookedSlots} slot terbooked dari {totalQuota} slot tersedia
+            </div>
+          )}
         </div>
 
         {/* Button - Fixed at bottom */}
@@ -257,10 +318,16 @@ export const EventCard: React.FC<EventCardProps> = ({
       {/* Kuota & Progress Bar */}
       <div className="mb-3">
         <div className="flex justify-between text-xs text-gray-600 mb-1.5">
-          <span>
-            Terisi: {participantsCount} / {totalQuota} peserta
+          <span className="font-medium">
+            {isLoadingSlots ? (
+              "Memuat kuota..."
+            ) : (
+              <>
+                Kuota Tersisa: {remainingQuota} dari {totalQuota}
+              </>
+            )}
           </span>
-          <span>{Math.round(quotaPercentage)}%</span>
+          <span className="font-medium">{Math.round(quotaPercentage)}%</span>
         </div>
         <div className="w-full bg-gray-200 rounded-full h-2">
           <div
@@ -274,6 +341,11 @@ export const EventCard: React.FC<EventCardProps> = ({
             style={{ width: `${Math.min(quotaPercentage, 100)}%` }}
           ></div>
         </div>
+        {!isLoadingSlots && (
+          <div className="text-xs text-gray-500 mt-1">
+            {bookedSlots} slot terbooked • {numberOfDays} hari tersedia
+          </div>
+        )}
       </div>
 
       {/* Benefit */}

@@ -27,6 +27,8 @@ declare module "next-auth/jwt" {
     id: string;
     username: string;
     role: string;
+    iat: number; // ✅ issued at
+    exp: number; // ✅ expiration
   }
 }
 
@@ -112,15 +114,17 @@ export const authOptions: NextAuthOptions = {
         token.username = user.username;
         token.role = user.role;
       }
+
+      // ✅ Always return token with required properties
       return token;
     },
 
     async session({ session, token }) {
       // Tambahkan data dari token ke session
       if (token && session.user) {
-        session.user.id = token.id;
-        session.user.username = token.username;
-        session.user.role = token.role;
+        session.user.id = token.id as string;
+        session.user.username = token.username as string;
+        session.user.role = token.role as string;
       }
       return session;
     },
@@ -133,7 +137,7 @@ export const authOptions: NextAuthOptions = {
 
   session: {
     strategy: "jwt",
-    maxAge: 30 * 24 * 60 * 60, // 30 days
+    maxAge: 4 * 60 * 60, // ✅ 4 hours in seconds
   },
 
   secret: process.env.NEXTAUTH_SECRET,

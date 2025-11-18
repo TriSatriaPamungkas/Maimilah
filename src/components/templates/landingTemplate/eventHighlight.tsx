@@ -33,12 +33,12 @@ const EventHighlight = () => {
             <h3 className="text-3xl font-bold text-gray-800">
               Official Event dari Maimilah
             </h3>
-            <p className="text-lg text-gray-700 leading-relaxed">
-              Maimilah secara rutin mengadakan berbagai event menarik yang
-              dirancang untuk mempererat tali persaudaraan antar anggota
-              komunitas. Dari workshop, gathering, hingga kegiatan sosial,
-              setiap event kami bertujuan untuk menciptakan pengalaman berkesan
-              dan membangun koneksi yang bermakna.
+            <p className="text-lg text-gray-700 leading-relaxed text-justify">
+              Di Maimilah, Kita rutin bikin workshop edukatif, seminar
+              inspiratif tentang sustainability, hingga gathering sosial yang
+              bener-bener bermakna.Semua event ini dirancang supaya anggota bisa
+              belajar sekaligus beraksi nyata, ga cuma ngomongin soal
+              lingkungan, tapi beneran berkontribusi.
             </p>
             <p className="text-lg text-gray-700 leading-relaxed">
               Bergabunglah dengan kami di event-event mendatang dan jadilah

@@ -22,15 +22,35 @@ export async function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
-  // Jika akses admin route tapi belum login
+  // ✅ Check if token exists and is valid
   const isAdminRoute = pathname.startsWith("/admin");
-  if (isAdminRoute && !token) {
-    const loginUrl = new URL("/admin/login", request.url);
-    return NextResponse.redirect(loginUrl);
+  if (isAdminRoute) {
+    if (!token || !token.id) {
+      // Token tidak ada atau invalid, redirect ke login
+      const loginUrl = new URL("/admin/login", request.url);
+      loginUrl.searchParams.set("callbackUrl", pathname);
+      return NextResponse.redirect(loginUrl);
+    }
+
+    // ✅ Check token expiration (4 hours)
+    const now = Math.floor(Date.now() / 1000);
+    const tokenIssuedAt = token.iat || now;
+    const fourHours = 4 * 60 * 60; // 4 hours in seconds
+
+    if (now - tokenIssuedAt > fourHours) {
+      // Session expired, redirect to login
+      const loginUrl = new URL("/admin/login", request.url);
+      loginUrl.searchParams.set("error", "SessionExpired");
+      loginUrl.searchParams.set(
+        "message",
+        "Sesi Anda telah berakhir setelah 4 jam tidak aktif"
+      );
+      return NextResponse.redirect(loginUrl);
+    }
   }
 
   // Jika sudah login dan akses login page, redirect ke dashboard
-  if (pathname === "/admin/login" && token) {
+  if (pathname === "/admin/login" && token && token.id) {
     const dashboardUrl = new URL("/admin/dashboard", request.url);
     return NextResponse.redirect(dashboardUrl);
   }

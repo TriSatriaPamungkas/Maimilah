@@ -7,7 +7,8 @@ import { useParams, useRouter } from "next/navigation";
 import { useEventStore } from "@/src/store/useEventStore";
 import { useRegistrationStore } from "@/src/store/useRegistrationStore";
 import DateCheckboxGrid from "@/src/components/molecules/dateCheckboxGrid";
-import { ArrowLeft } from "lucide-react";
+import { ParticipantsTable } from "@/src/components/organism/ParticipantsTable";
+import { ArrowLeft, Download } from "lucide-react";
 
 interface Participant {
   _id?: string;
@@ -31,8 +32,6 @@ const ParticipantDetailPage: React.FC = () => {
   const {
     fetchParticipantsByEvent,
     getParticipantsByEvent,
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    getAvailableDatesByEvent,
     initializeEventDates,
   } = useRegistrationStore();
 
@@ -113,7 +112,7 @@ const ParticipantDetailPage: React.FC = () => {
       const hasChanged = eventDates.some((date) => prev[date] !== counts[date]);
       return hasChanged ? counts : prev;
     });
-  }, [eventId, eventDates.length]); // Remove getParticipantsByEvent from deps
+  }, [eventId, eventDates.length]);
 
   // Format tanggal ke bahasa Indonesia
   const formatDate = (dateStr: string) => {
@@ -191,12 +190,11 @@ const ParticipantDetailPage: React.FC = () => {
 
     // Generate filename dengan tanggal
     const now = new Date();
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    const dateString = now.toISOString().split("T")[0]; // Format: YYYY-MM-DD
+    const dateString = now.toISOString().split("T")[0];
     const eventName = event.title
       .replace(/\s+/g, "_")
       .replace(/[^a-zA-Z0-9_]/g, "");
-    const filename = `participants_${eventName}_.csv`;
+    const filename = `participants_${eventName}_${dateString}.csv`;
 
     // Download CSV
     const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
@@ -231,13 +229,15 @@ const ParticipantDetailPage: React.FC = () => {
   return (
     <div className="min-h-screen bg-gray-50 p-6">
       <div className="max-w-7xl mx-auto">
+        {/* Back Button */}
         <button
           onClick={() => router.push("/admin/dashboard/participants")}
-          className="text-gray-600 hover:text-gray-800 mb-3 flex items-center space-x-1 text-sm"
+          className="text-gray-600 hover:text-gray-800 mb-3 flex items-center space-x-1 text-sm transition-colors"
         >
-          <ArrowLeft />
+          <ArrowLeft className="w-4 h-4" />
           <span>Kembali ke Daftar Event</span>
         </button>
+
         {/* Header */}
         <div className="bg-gray-100 p-6 rounded-lg mb-6">
           <div className="flex justify-between items-center">
@@ -251,8 +251,9 @@ const ParticipantDetailPage: React.FC = () => {
             </div>
             <button
               onClick={handleExportCSV}
-              className="bg-green-500 hover:bg-green-800 text-white px-6 py-2.5  flex items-center space-x-2 transition-colors shadow-sm"
+              className="bg-green-600 hover:bg-green-700 text-white px-6 py-2.5 rounded-lg flex items-center space-x-2 transition-colors shadow-sm font-medium"
             >
+              <Download className="w-4 h-4" />
               <span>Export CSV</span>
             </button>
           </div>
@@ -288,98 +289,19 @@ const ParticipantDetailPage: React.FC = () => {
                 ? `Partisipan - ${formatDate(selectedDate)}`
                 : "Daftar Partisipan"}
             </h2>
-            {selectedDate && (
-              <span className="text-sm text-gray-600">
+            {selectedDate && participants.length > 0 && (
+              <span className="text-sm text-gray-600 bg-gray-100 px-3 py-1 rounded-full">
                 Total: {participants.length} peserta
               </span>
             )}
           </div>
 
-          {!selectedDate ? (
-            <div className="text-center py-12 text-gray-500">
-              <p className="text-lg mb-2">Pilih tanggal terlebih dahulu</p>
-              <p className="text-sm">
-                Klik salah satu tanggal di atas untuk melihat daftar partisipan
-              </p>
-            </div>
-          ) : isLoading ? (
-            <div className="text-center py-12 text-gray-500 animate-pulse">
-              Loading partisipan...
-            </div>
-          ) : participants.length === 0 ? (
-            <div className="text-center py-12 text-gray-500">
-              <p className="text-lg">Belum ada partisipan terdaftar</p>
-              <p className="text-sm">
-                untuk tanggal {formatDate(selectedDate)}
-              </p>
-            </div>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead>
-                  <tr className="bg-gray-50 border-b border-gray-200">
-                    <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700 w-16">
-                      No
-                    </th>
-                    <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">
-                      Nama Partisipan
-                    </th>
-                    <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">
-                      Email
-                    </th>
-                    <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">
-                      Telepon
-                    </th>
-                    <th className="px-4 py-3 text-center text-sm font-semibold text-gray-700 w-24">
-                      Aksi
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-100">
-                  {participants.map((participant, index) => (
-                    <tr
-                      key={participant._id || participant.id || index}
-                      className="hover:bg-gray-50 transition-colors"
-                    >
-                      <td className="px-4 py-3 text-sm text-gray-600">
-                        {index + 1}
-                      </td>
-                      <td className="px-4 py-3 text-sm text-gray-800 font-medium">
-                        {participant.name}
-                      </td>
-                      <td className="px-4 py-3 text-sm text-gray-600">
-                        {participant.email}
-                      </td>
-                      <td className="px-4 py-3 text-sm text-gray-600">
-                        {participant.phone || "-"}
-                      </td>
-                      <td className="px-4 py-3 text-center">
-                        <button
-                          onClick={() => {
-                            alert(
-                              `Detail Partisipan:\n\n` +
-                                `Nama: ${participant.name}\n` +
-                                `Email: ${participant.email}\n` +
-                                `Telepon: ${participant.phone || "-"}\n` +
-                                `Domisili: ${participant.domisili || "-"}\n` +
-                                `Sumber Info: ${participant.source || "-"}\n` +
-                                `Alasan: ${participant.reason || "-"}\n` +
-                                `Tanggal Terdaftar: ${
-                                  participant.selectedDates?.join(", ") || "-"
-                                }`
-                            );
-                          }}
-                          className="text-green-500 hover:text-green-700 text-sm font-medium"
-                        >
-                          Detail
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
+          {/* ✅ Use ParticipantsTable Component */}
+          <ParticipantsTable
+            participants={participants}
+            isLoading={isLoading}
+            selectedDate={selectedDate}
+          />
         </div>
       </div>
     </div>

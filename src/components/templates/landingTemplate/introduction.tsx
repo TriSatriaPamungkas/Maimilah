@@ -14,17 +14,17 @@ const Introduction = () => {
 
         <div className="grid md:grid-cols-2 gap-12 items-center">
           <div className="space-y-6">
-            <p className="text-lg text-gray-700 leading-relaxed">
-              Maimilah adalah komunitas yang berdedikasi untuk menciptakan ruang
-              kolaborasi, kreativitas, dan pertumbuhan bersama. Kami percaya
-              bahwa setiap individu memiliki potensi unik yang dapat
-              dikembangkan melalui kebersamaan.
+            <p className="text-lg text-gray-700 leading-relaxed text-justify">
+              Maimilah adalah komunitas kreatif dan peduli lingkungan yang lahir
+              dari semangat kolaborasi anak muda Bali. Di sini, kita nggak cuma
+              kumpul-kumpul buat bikin event keren, tapi juga punya misi nyata
+              yaitu menjaga alam.
             </p>
-            <p className="text-lg text-gray-700 leading-relaxed">
-              Melalui berbagai kegiatan, event, dan program yang kami
-              selenggarakan, kami berusaha memberikan wadah bagi setiap anggota
-              untuk mengekspresikan diri, belajar hal baru, dan membangun
-              koneksi yang bermakna.
+            <p className="text-lg text-gray-700 leading-relaxed text-justify">
+              Lewat aksi pilah sampah, ngurangin plastik sekali pakai, dan ikut
+              gerakan Bali Bersih. Kami percaya bahwa lewat kebersamaan dan
+              kreativitas, setiap orang bisa jadi agen perubahan — nggak cuma
+              buat komunitas, tapi juga untuk lingkungan sekitar.
             </p>
             <div className="grid grid-cols-3 gap-4 pt-6">
               <div className="text-center">

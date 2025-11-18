@@ -3,6 +3,8 @@
 // src/store/useEventStore.ts
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
+import { logActivity } from "@/src/store/useActivityStore";
+import { ActivityType } from "@/src/models/activity";
 
 export type EventSchedule =
   | {
@@ -95,7 +97,7 @@ export const useEventStore = create<EventStore>()(
         }
       },
 
-      // 🔹 Add event - FIXED
+      // 🔹 Add event - FIXED with Activity Logging
       addEvent: async (event) => {
         try {
           // Simpan event as-is tanpa modifikasi schedule type
@@ -114,6 +116,16 @@ export const useEventStore = create<EventStore>()(
           const newEvent = json.data || json;
 
           set((state) => ({ events: [...state.events, newEvent] }));
+
+          // ✅ LOG ACTIVITY
+          logActivity(
+            ActivityType.EVENT_CREATED,
+            `Event baru dibuat: ${event.title}`,
+            {
+              eventId: newEvent._id || newEvent.id,
+              eventTitle: event.title,
+            }
+          );
         } catch (err: any) {
           console.error("Error addEvent:", err);
           set({ error: err.message });
@@ -121,8 +133,13 @@ export const useEventStore = create<EventStore>()(
         }
       },
 
-      // 🔹 Update event (bisa ubah kuota juga)
+      // 🔹 Update event (bisa ubah kuota juga) with Activity Logging
       updateEvent: async (id, updatedEvent) => {
+        // Get current event for title
+        const currentEvent = get().events.find(
+          (e) => e._id === id || e.id === id
+        );
+
         try {
           const res = await fetch(`/api/event/${id}`, {
             method: "PUT",
@@ -139,6 +156,18 @@ export const useEventStore = create<EventStore>()(
               e._id === id || e.id === id ? { ...e, ...updated } : e
             ),
           }));
+
+          // ✅ LOG ACTIVITY
+          const eventTitle =
+            updatedEvent.title || currentEvent?.title || "Unknown";
+          logActivity(
+            ActivityType.EVENT_UPDATED,
+            `Event diperbarui: ${eventTitle}`,
+            {
+              eventId: id,
+              eventTitle: eventTitle,
+            }
+          );
         } catch (err: any) {
           console.error("Error updateEvent:", err);
           set({ error: err.message });
@@ -146,8 +175,11 @@ export const useEventStore = create<EventStore>()(
         }
       },
 
-      // 🔹 Delete event
+      // 🔹 Delete event with Activity Logging
       deleteEvent: async (id) => {
+        // Get event before deleting
+        const event = get().events.find((e) => e._id === id || e.id === id);
+
         try {
           const res = await fetch(`/api/event/${id}`, { method: "DELETE" });
           if (!res.ok) throw new Error(`Failed to delete event: ${res.status}`);
@@ -155,6 +187,18 @@ export const useEventStore = create<EventStore>()(
           set((state) => ({
             events: state.events.filter((e) => e._id !== id && e.id !== id),
           }));
+
+          // ✅ LOG ACTIVITY
+          if (event) {
+            logActivity(
+              ActivityType.EVENT_DELETED,
+              `Event dihapus: ${event.title}`,
+              {
+                eventId: id,
+                eventTitle: event.title,
+              }
+            );
+          }
         } catch (err: any) {
           console.error("Error deleteEvent:", err);
           set({ error: err.message });
@@ -168,6 +212,11 @@ export const useEventStore = create<EventStore>()(
 
       // 🔹 Participant logic
       addParticipant: async (eventId, participantId) => {
+        // Get event data untuk ambil nama event
+        const event = get().events.find(
+          (e) => e._id === eventId || e.id === eventId
+        );
+
         try {
           const res = await fetch(`/api/register`, {
             method: "POST",
@@ -190,6 +239,19 @@ export const useEventStore = create<EventStore>()(
                 : event
             ),
           }));
+
+          // ✅ LOG ACTIVITY
+          if (event) {
+            logActivity(
+              ActivityType.PARTICIPANT_REGISTERED,
+              `Seseorang telah mendaftar di: ${event.title}`,
+              {
+                eventId: eventId,
+                eventTitle: event.title,
+                participantName: participantId, // atau bisa diganti dengan nama participant jika ada
+              }
+            );
+          }
         } catch (err: any) {
           console.error("Error addParticipant:", err);
           set({ error: err.message });

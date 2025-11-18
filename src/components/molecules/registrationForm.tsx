@@ -273,16 +273,16 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({
             required
             disabled={isSubmitting}
             className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-green-500 focus:border-transparent disabled:bg-gray-100 disabled:cursor-not-allowed"
-            placeholder="Contoh: 081234567890"
-            minLength={10}
-            maxLength={13}
+            placeholder="Contoh: 6281234567890"
+            minLength={11}
+            maxLength={15}
           />
           <p className="text-xs text-gray-500 mt-1">
-            Format: 10-13 digit angka (contoh: 081234567890)
+            Format: 11-15 digit angka tanpa + (contoh: 6281234567890)
           </p>
           {form.phone && (form.phone.length < 10 || form.phone.length > 13) && (
             <p className="text-xs text-red-500 mt-1">
-              Nomor telepon harus 10-13 digit
+              Nomor telepon harus 11-15 digit
             </p>
           )}
         </div>
