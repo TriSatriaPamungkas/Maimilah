@@ -1,17 +1,28 @@
 "use client";
-import React, { useState } from "react";
-import { useRouter } from "next/navigation";
-import { signIn } from "next-auth/react";
+
+import React, { useState, useEffect } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { signIn, useSession } from "next-auth/react";
 import { Eye, EyeOff, X, CheckCircle } from "lucide-react";
 
 export const LoginForm: React.FC = () => {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const { data: session, status } = useSession();
 
   const [form, setForm] = useState({ username: "", password: "" });
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
+
+  // Auto redirect jika sudah login
+  useEffect(() => {
+    if (status === "authenticated" && session) {
+      const callbackUrl = searchParams.get("callbackUrl") || "/admin/dashboard";
+      router.replace(callbackUrl);
+    }
+  }, [status, session, router, searchParams]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -30,9 +41,14 @@ export const LoginForm: React.FC = () => {
         setIsLoading(false);
       } else if (result?.ok) {
         setShowSuccess(true);
-        setTimeout(() => {
-          router.push("/admin/dashboard");
-        }, 1500);
+
+        // Tunggu session ter-update sebelum redirect
+        await new Promise((resolve) => setTimeout(resolve, 800));
+
+        const callbackUrl =
+          searchParams.get("callbackUrl") || "/admin/dashboard";
+        router.replace(callbackUrl);
+        router.refresh(); // Force refresh untuk update session
       } else {
         setError("Login gagal, coba ulangi.");
         setIsLoading(false);
@@ -48,10 +64,22 @@ export const LoginForm: React.FC = () => {
     router.push("/");
   };
 
+  // Show loading jika sedang authenticated (proses redirect)
+  if (status === "loading" || (status === "authenticated" && !showSuccess)) {
+    return (
+      <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
+        <div className="bg-white rounded-2xl shadow-xl p-8 text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-green-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">Memuat...</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <>
       {showSuccess && (
-        <div className="fixed top-4 right-4 bg-green-500 text-white px-6 py-4 rounded-lg shadow-lg z-[9999] animate-in slide-in-from-right-8 duration-300">
+        <div className="fixed top-4 right-4 bg-green-500 text-white px-6 py-4 rounded-lg shadow-lg z-9999 animate-in slide-in-from-right-8 duration-300">
           <div className="flex items-center gap-3">
             <CheckCircle size={24} />
             <div>

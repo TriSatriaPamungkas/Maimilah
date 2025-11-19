@@ -14,17 +14,23 @@ export default function AdminLayout({
   const { status } = useSession();
   const pathname = usePathname();
   const router = useRouter();
+  const isLoginPage = pathname === "/admin/login";
 
-  // Redirect jika belum auth dan bukan di halaman login
+  // Redirect logic - HANYA jika bukan login page
   useEffect(() => {
-    if (status === "unauthenticated" && pathname !== "/admin/login") {
-      // redirect ke halaman login dengan callbackUrl current page
+    if (status === "unauthenticated" && !isLoginPage) {
       router.replace(
         `/admin/login?callbackUrl=${encodeURIComponent(pathname)}`
       );
     }
-  }, [status, pathname, router]);
+  }, [status, pathname, isLoginPage, router]);
 
+  // Halaman login: render tanpa sidebar
+  if (isLoginPage) {
+    return <>{children}</>;
+  }
+
+  // Loading state
   if (status === "loading") {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
@@ -36,11 +42,7 @@ export default function AdminLayout({
     );
   }
 
-  // Halaman login tetap tanpa sidebar
-  if (pathname === "/admin/login") {
-    return <>{children}</>;
-  }
-
+  // Authenticated: render dengan sidebar
   if (status === "authenticated") {
     return (
       <>
@@ -55,12 +57,12 @@ export default function AdminLayout({
     );
   }
 
-  // state fallback saat redirect sedang berlangsung
+  // Fallback saat redirect (unauthenticated & bukan login page)
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50">
       <div className="text-center">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-green-600 mx-auto mb-4"></div>
-        <p className="text-gray-600">Redirecting...</p>
+        <p className="text-gray-600">Mengalihkan...</p>
       </div>
     </div>
   );
