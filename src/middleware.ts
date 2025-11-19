@@ -6,11 +6,12 @@ import type { NextRequest } from "next/server";
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
-  // Allow NextAuth callbacks and API routes
+  // Skip middleware untuk static files, API routes, dan NextAuth
   if (
     pathname.startsWith("/api/auth") ||
     pathname.startsWith("/_next") ||
-    pathname.startsWith("/static")
+    pathname.startsWith("/static") ||
+    pathname.includes(".")
   ) {
     return NextResponse.next();
   }
@@ -52,5 +53,14 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/admin/:path*", "/api/admin/:path*"],
+  matcher: [
+    /*
+     * Match all request paths except:
+     * - api routes (handled above)
+     * - _next/static (static files)
+     * - _next/image (image optimization files)
+     * - favicon.ico (favicon file)
+     */
+    "/((?!api|_next/static|_next/image|favicon.ico).*)",
+  ],
 };

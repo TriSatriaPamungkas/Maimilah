@@ -33,17 +33,24 @@ export const LoginForm: React.FC = () => {
     try {
       const callbackUrl = searchParams.get("callbackUrl") || "/admin/dashboard";
 
-      // Biarkan NextAuth handle semua redirect
+      // Gunakan redirect: false untuk kontrol penuh
       const result = await signIn("credentials", {
         username: form.username,
         password: form.password,
-        callbackUrl: callbackUrl,
-        redirect: true, // NextAuth akan auto redirect jika berhasil
+        redirect: false,
       });
 
-      // Kode di bawah hanya execute jika ada error
       if (result?.error) {
         setError("Username atau password salah");
+        setIsLoading(false);
+        return;
+      }
+
+      if (result?.ok) {
+        // Force hard redirect setelah berhasil
+        window.location.href = callbackUrl;
+      } else {
+        setError("Login gagal, coba ulangi.");
         setIsLoading(false);
       }
     } catch (err) {
@@ -107,7 +114,7 @@ export const LoginForm: React.FC = () => {
             required
             disabled={isLoading}
             placeholder="Masukkan username"
-            className="w-full border border-gray-300 rounded-lg px-3 py-3 text-sm text-black focus:ring-2 focus:ring-green-500 focus:border-transparent disabled:bg-gray-100 disabled:cursor-not-allowed"
+            className="w-full border border-gray-300 rounded-lg px-3 py-3 text-black text-sm focus:ring-2 focus:ring-green-500 focus:border-transparent disabled:bg-gray-100 disabled:cursor-not-allowed"
           />
 
           <label className="block text-sm font-medium text-gray-700 mb-2">
