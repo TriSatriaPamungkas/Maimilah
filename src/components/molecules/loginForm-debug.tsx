@@ -14,13 +14,42 @@ export const LoginFormDebug: React.FC = () => {
     setLogs((prev) => [...prev, `${new Date().toLocaleTimeString()}: ${msg}`]);
   };
 
-  const testRedirect = () => {
+  const testRedirect = async () => {
     addLog("🧪 Testing direct redirect...");
+
     try {
-      window.location.href = "/admin/dashboard";
-      addLog("✅ Redirect command executed");
+      // First check dashboard directly with fetch
+      addLog("📡 Fetching /admin/dashboard...");
+      const response = await fetch("/admin/dashboard", {
+        method: "HEAD",
+        credentials: "include",
+      });
+
+      addLog(`📊 Response status: ${response.status}`);
+      addLog(`📊 Response URL: ${response.url}`);
+
+      // Check middleware headers
+      const middlewareAction = response.headers.get("X-Middleware-Action");
+      const tokenStatus = response.headers.get("X-Token-Status");
+
+      if (middlewareAction) {
+        addLog(`🔒 Middleware Action: ${middlewareAction}`);
+      }
+      if (tokenStatus) {
+        addLog(`🔑 Token Status: ${tokenStatus}`);
+      }
+
+      // If response.url is still login page, middleware is redirecting
+      if (response.url.includes("/admin/login")) {
+        addLog("❌ PROBLEM: Middleware redirecting back to login!");
+        addLog("💡 Token not being recognized by middleware");
+      } else if (response.url.includes("/admin/dashboard")) {
+        addLog("✅ Middleware allows dashboard access");
+        addLog("🚀 Now trying window.location redirect...");
+        window.location.href = "/admin/dashboard";
+      }
     } catch (err) {
-      addLog("❌ Redirect failed: " + err);
+      addLog("❌ Fetch failed: " + err);
     }
   };
 
