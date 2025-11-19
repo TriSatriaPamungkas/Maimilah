@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { signIn, useSession } from "next-auth/react";
 import { Eye, EyeOff, X, CheckCircle } from "lucide-react";
@@ -8,7 +8,7 @@ import { Eye, EyeOff, X, CheckCircle } from "lucide-react";
 export const LoginForm: React.FC = () => {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { data: session, status } = useSession();
+  const { status } = useSession();
 
   const [form, setForm] = useState({ username: "", password: "" });
   const [showPassword, setShowPassword] = useState(false);
@@ -16,13 +16,8 @@ export const LoginForm: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
 
-  // Auto redirect jika sudah login
-  useEffect(() => {
-    if (status === "authenticated" && session) {
-      const callbackUrl = searchParams.get("callbackUrl") || "/admin/dashboard";
-      router.replace(callbackUrl);
-    }
-  }, [status, session, router, searchParams]);
+  // Hapus auto redirect dari useEffect
+  // Biarkan handleSubmit yang handle redirect langsung
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -40,15 +35,17 @@ export const LoginForm: React.FC = () => {
         setError(result.error);
         setIsLoading(false);
       } else if (result?.ok) {
+        // Show success notification
         setShowSuccess(true);
 
-        // Tunggu session ter-update sebelum redirect
-        await new Promise((resolve) => setTimeout(resolve, 800));
-
+        // Redirect immediately tanpa delay panjang
         const callbackUrl =
           searchParams.get("callbackUrl") || "/admin/dashboard";
-        router.replace(callbackUrl);
-        router.refresh(); // Force refresh untuk update session
+
+        // Gunakan window.location untuk hard redirect (lebih reliable)
+        setTimeout(() => {
+          window.location.href = callbackUrl;
+        }, 300);
       } else {
         setError("Login gagal, coba ulangi.");
         setIsLoading(false);
@@ -64,8 +61,8 @@ export const LoginForm: React.FC = () => {
     router.push("/");
   };
 
-  // Show loading jika sedang authenticated (proses redirect)
-  if (status === "loading" || (status === "authenticated" && !showSuccess)) {
+  // Show loading hanya saat initial load
+  if (status === "loading") {
     return (
       <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
         <div className="bg-white rounded-2xl shadow-xl p-8 text-center">
@@ -139,7 +136,7 @@ export const LoginForm: React.FC = () => {
               required
               disabled={isLoading}
               placeholder="Masukkan username"
-              className="w-full border border-gray-300 rounded-lg px-3 py-3 text-sm focus:ring-2 focus:ring-green-500 focus:border-transparent disabled:bg-gray-100 disabled:cursor-not-allowed"
+              className="w-full border border-gray-300 rounded-lg px-3 py-3 text-sm focus:ring-2 focus:ring-green-500 focus:border-transparent text-black disabled:bg-gray-100 disabled:cursor-not-allowed"
             />
 
             <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -153,7 +150,7 @@ export const LoginForm: React.FC = () => {
                 required
                 disabled={isLoading}
                 placeholder="Masukkan password"
-                className="w-full border border-gray-300 rounded-lg px-3 py-3 pr-10 text-sm focus:ring-2 focus:ring-green-500 focus:border-transparent disabled:bg-gray-100 disabled:cursor-not-allowed"
+                className="w-full border border-gray-300 rounded-lg px-3 py-3 pr-10 text-sm focus:ring-2 focus:ring-green-500 focus:border-transparent text-black disabled:bg-gray-100 disabled:cursor-not-allowed"
               />
               <button
                 type="button"
