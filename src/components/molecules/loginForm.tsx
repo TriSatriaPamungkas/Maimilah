@@ -1,4 +1,3 @@
-/* eslint-disable react-hooks/set-state-in-effect */
 "use client";
 
 import React, { useState, useEffect } from "react";
@@ -10,28 +9,32 @@ export const LoginForm: React.FC = () => {
   const router = useRouter();
   const searchParams = useSearchParams();
 
-  const [form, setForm] = useState({ username: "", password: "" });
-  const [showPassword, setShowPassword] = useState(false);
-  const [error, setError] = useState("");
-  const [isLoading, setIsLoading] = useState(false);
-
-  // Check for session expired error from URL
-  useEffect(() => {
+  // Get initial error dari URL params (session expired)
+  const initialError = React.useMemo(() => {
     const errorParam = searchParams.get("error");
     const messageParam = searchParams.get("message");
 
     if (errorParam === "SessionExpired" && messageParam) {
-      setError(messageParam);
+      return messageParam;
     }
+    return "";
   }, [searchParams]);
+
+  const [form, setForm] = useState({ username: "", password: "" });
+  const [showPassword, setShowPassword] = useState(false);
+  const [error, setError] = useState(initialError); // Set initial dari URL
+  const [isLoading, setIsLoading] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
     setIsLoading(true);
 
+    console.log("🔐 Starting login process...");
+
     try {
       const callbackUrl = searchParams.get("callbackUrl") || "/admin/dashboard";
+      console.log("📍 Callback URL:", callbackUrl);
 
       // Gunakan redirect: false untuk kontrol penuh
       const result = await signIn("credentials", {
@@ -40,21 +43,34 @@ export const LoginForm: React.FC = () => {
         redirect: false,
       });
 
+      console.log("✅ SignIn result:", result);
+
       if (result?.error) {
+        console.error("❌ Login error:", result.error);
         setError("Username atau password salah");
         setIsLoading(false);
         return;
       }
 
       if (result?.ok) {
-        // Force hard redirect setelah berhasil
-        window.location.href = callbackUrl;
+        console.log("✅ Login successful! Redirecting to:", callbackUrl);
+
+        // ALTERNATIF 1: Try Next.js router first
+        router.push(callbackUrl);
+        router.refresh();
+
+        // ALTERNATIF 2: Fallback ke window.location jika router gagal
+        setTimeout(() => {
+          console.log("🚀 Fallback: Force window.location redirect");
+          window.location.href = callbackUrl;
+        }, 1000);
       } else {
+        console.error("❌ Unknown login state:", result);
         setError("Login gagal, coba ulangi.");
         setIsLoading(false);
       }
     } catch (err) {
-      console.error("Login error:", err);
+      console.error("❌ Login exception:", err);
       setError("Terjadi kesalahan saat login. Silakan coba lagi.");
       setIsLoading(false);
     }
@@ -114,7 +130,7 @@ export const LoginForm: React.FC = () => {
             required
             disabled={isLoading}
             placeholder="Masukkan username"
-            className="w-full border border-gray-300 rounded-lg px-3 py-3 text-black text-sm focus:ring-2 focus:ring-green-500 focus:border-transparent disabled:bg-gray-100 disabled:cursor-not-allowed"
+            className="w-full border border-gray-300 rounded-lg px-3 py-3 text-sm focus:ring-2 focus:ring-green-500 focus:border-transparent disabled:bg-gray-100 disabled:cursor-not-allowed"
           />
 
           <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -128,7 +144,7 @@ export const LoginForm: React.FC = () => {
               required
               disabled={isLoading}
               placeholder="Masukkan password"
-              className="w-full border border-gray-300 rounded-lg px-3 py-3 pr-10 text-sm text-black focus:ring-2 focus:ring-green-500 focus:border-transparent disabled:bg-gray-100 disabled:cursor-not-allowed"
+              className="w-full border border-gray-300 rounded-lg px-3 py-3 pr-10 text-sm focus:ring-2 focus:ring-green-500 focus:border-transparent disabled:bg-gray-100 disabled:cursor-not-allowed"
             />
             <button
               type="button"
