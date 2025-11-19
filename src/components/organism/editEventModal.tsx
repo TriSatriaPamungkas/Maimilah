@@ -186,7 +186,7 @@ const EditEventModal: React.FC<EditEventModalProps> = ({
     <>
       {/* ✅ Success Toast */}
       {showSuccess && (
-        <div className="fixed top-4 right-4 bg-green-500 text-white px-6 py-4 rounded-lg shadow-lg z-[9999] animate-in slide-in-from-right-8 duration-300">
+        <div className="fixed top-4 right-4 bg-green-500 text-white px-6 py-4 rounded-lg shadow-lg z-9999 animate-in slide-in-from-right-8 duration-300">
           <div className="flex items-center gap-3">
             <CheckCircle size={24} className="text-white" />
             <div>
