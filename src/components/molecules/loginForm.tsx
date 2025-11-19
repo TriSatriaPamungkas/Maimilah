@@ -55,15 +55,32 @@ export const LoginForm: React.FC = () => {
       if (result?.ok) {
         console.log("✅ Login successful! Redirecting to:", callbackUrl);
 
-        // ALTERNATIF 1: Try Next.js router first
-        router.push(callbackUrl);
-        router.refresh();
+        // STRATEGI: Coba beberapa metode redirect secara berurutan
+        try {
+          // Method 1: Next.js router (soft navigation)
+          console.log("📍 Method 1: Using Next.js router...");
+          router.push(callbackUrl);
+          router.refresh();
 
-        // ALTERNATIF 2: Fallback ke window.location jika router gagal
-        setTimeout(() => {
-          console.log("🚀 Fallback: Force window.location redirect");
+          // Method 2: Hard redirect setelah 500ms (fallback)
+          setTimeout(() => {
+            console.log("📍 Method 2: Using window.location...");
+            try {
+              window.location.href = callbackUrl;
+            } catch (redirectError) {
+              console.error(
+                "❌ Window.location redirect failed:",
+                redirectError
+              );
+              // Method 3: Force reload dengan replace
+              window.location.replace(callbackUrl);
+            }
+          }, 500);
+        } catch (routerError) {
+          console.error("❌ Router redirect failed:", routerError);
+          // Immediate fallback
           window.location.href = callbackUrl;
-        }, 1000);
+        }
       } else {
         console.error("❌ Unknown login state:", result);
         setError("Login gagal, coba ulangi.");

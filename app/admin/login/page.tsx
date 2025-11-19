@@ -1,6 +1,9 @@
 // app/admin/login/page.tsx
+"use client";
+
 import { Suspense } from "react";
 import { LoginForm } from "@/src/components/molecules/loginForm";
+import { useEffect } from "react";
 
 function LoginFormFallback() {
   return (
@@ -13,10 +16,36 @@ function LoginFormFallback() {
   );
 }
 
-export default function AdminLoginPage() {
+function LoginPageContent() {
+  // Suppress browser extension errors
+  useEffect(() => {
+    const handleError = (event: ErrorEvent) => {
+      // Ignore errors dari browser extensions
+      if (
+        event.filename?.includes("chrome-extension://") ||
+        event.message?.includes("chrome-extension://") ||
+        event.filename?.includes("content.dist.js")
+      ) {
+        console.log("🔇 Suppressed browser extension error");
+        event.preventDefault();
+        return true;
+      }
+    };
+
+    window.addEventListener("error", handleError, true);
+
+    return () => {
+      window.removeEventListener("error", handleError, true);
+    };
+  }, []);
+
   return (
     <Suspense fallback={<LoginFormFallback />}>
       <LoginForm />
     </Suspense>
   );
+}
+
+export default function AdminLoginPage() {
+  return <LoginPageContent />;
 }
