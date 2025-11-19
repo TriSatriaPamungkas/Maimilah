@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 // app/api/auth/[...nextauth]/route.ts
 import NextAuth, { NextAuthOptions } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
@@ -88,6 +89,8 @@ export const authOptions: NextAuthOptions = {
         session.user.id = token.id as string;
         session.user.username = token.username as string;
         session.user.role = token.role as string;
+        // Expose exp untuk SessionTimeoutHandler
+        (session as any).exp = token.exp;
       }
       return session;
     },

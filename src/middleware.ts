@@ -4,55 +4,48 @@ import { getToken } from "next-auth/jwt";
 import type { NextRequest } from "next/server";
 
 export async function middleware(request: NextRequest) {
-  const token = await getToken({
-    req: request,
-    secret: process.env.NEXTAUTH_SECRET,
-  });
-
   const { pathname } = request.nextUrl;
 
-  // Public routes yang tidak perlu authentication
-  const publicRoutes = ["/admin/login", "/api/auth"];
-  const isPublicRoute = publicRoutes.some((route) =>
-    pathname.startsWith(route)
-  );
-
-  // Jika public route, lanjutkan
-  if (isPublicRoute) {
+  // Allow NextAuth callbacks and API routes
+  if (
+    pathname.startsWith("/api/auth") ||
+    pathname.startsWith("/_next") ||
+    pathname.startsWith("/static")
+  ) {
     return NextResponse.next();
   }
 
-  // ✅ Check if token exists and is valid
-  const isAdminRoute = pathname.startsWith("/admin");
-  if (isAdminRoute) {
-    if (!token || !token.id) {
-      // Token tidak ada atau invalid, redirect ke login
+  // Public route: login page
+  if (pathname === "/admin/login") {
+    const token = await getToken({
+      req: request,
+      secret: process.env.NEXTAUTH_SECRET,
+    });
+
+    // Jika sudah login, redirect ke dashboard
+    if (token?.id) {
+      return NextResponse.redirect(new URL("/admin/dashboard", request.url));
+    }
+
+    return NextResponse.next();
+  }
+
+  // Protected routes: /admin/*
+  if (pathname.startsWith("/admin")) {
+    const token = await getToken({
+      req: request,
+      secret: process.env.NEXTAUTH_SECRET,
+    });
+
+    // Tidak ada token = belum login
+    if (!token?.id) {
       const loginUrl = new URL("/admin/login", request.url);
       loginUrl.searchParams.set("callbackUrl", pathname);
       return NextResponse.redirect(loginUrl);
     }
 
-    // ✅ Check token expiration (4 hours)
-    const now = Math.floor(Date.now() / 1000);
-    const tokenIssuedAt = token.iat || now;
-    const fourHours = 4 * 60 * 60; // 4 hours in seconds
-
-    if (now - tokenIssuedAt > fourHours) {
-      // Session expired, redirect to login
-      const loginUrl = new URL("/admin/login", request.url);
-      loginUrl.searchParams.set("error", "SessionExpired");
-      loginUrl.searchParams.set(
-        "message",
-        "Sesi Anda telah berakhir setelah 4 jam tidak aktif"
-      );
-      return NextResponse.redirect(loginUrl);
-    }
-  }
-
-  // Jika sudah login dan akses login page, redirect ke dashboard
-  if (pathname === "/admin/login" && token && token.id) {
-    const dashboardUrl = new URL("/admin/dashboard", request.url);
-    return NextResponse.redirect(dashboardUrl);
+    // Token ada, lanjutkan
+    return NextResponse.next();
   }
 
   return NextResponse.next();

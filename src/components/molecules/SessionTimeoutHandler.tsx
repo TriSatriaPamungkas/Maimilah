@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 /* eslint-disable react-hooks/immutability */
 // src/components/molecules/SessionTimeoutHandler.tsx
 "use client";
@@ -17,26 +18,24 @@ export const SessionTimeoutHandler = () => {
     if (status !== "authenticated" || !session) return;
 
     const checkSession = () => {
-      // Get session start time (JWT iat)
-      const now = Date.now();
-      const sessionMaxAge = 4 * 60 * 60 * 1000; // 4 hours in milliseconds
+      // Get JWT expiration time
+      const sessionMaxAge = 4 * 60 * 60; // 4 hours in seconds
+      const warningThreshold = 10 * 60; // 10 minutes in seconds
 
-      // Warning 10 minutes before expiration
-      const warningTime = sessionMaxAge - 10 * 60 * 1000;
+      // Get token data from session
+      const token = session as any;
+      const exp = token.exp; // JWT expiration timestamp
+      const now = Math.floor(Date.now() / 1000);
 
-      // Calculate session age (this is approximate, better to use JWT iat)
-      // For now, we'll show warning based on last activity
-      const lastActivity = parseInt(
-        localStorage.getItem("lastActivity") || now.toString()
-      );
-      const sessionAge = now - lastActivity;
-      const remaining = sessionMaxAge - sessionAge;
+      if (!exp) return;
 
-      // Update time left
-      setTimeLeft(Math.floor(remaining / 1000 / 60)); // minutes
+      const remaining = exp - now;
+      const remainingMinutes = Math.floor(remaining / 60);
+
+      setTimeLeft(remainingMinutes);
 
       // Show warning if less than 10 minutes remaining
-      if (sessionAge >= warningTime && remaining > 0) {
+      if (remaining > 0 && remaining <= warningThreshold) {
         setShowWarning(true);
       }
 
@@ -46,44 +45,25 @@ export const SessionTimeoutHandler = () => {
       }
     };
 
-    // Track user activity
-    const updateActivity = () => {
-      localStorage.setItem("lastActivity", Date.now().toString());
-      setShowWarning(false); // Hide warning on activity
-    };
-
-    // Events that indicate user activity
-    const events = ["mousedown", "keydown", "scroll", "touchstart"];
-    events.forEach((event) => {
-      window.addEventListener(event, updateActivity);
-    });
-
-    // Initialize last activity
-    if (!localStorage.getItem("lastActivity")) {
-      localStorage.setItem("lastActivity", Date.now().toString());
-    }
-
     // Check session every minute
     const interval = setInterval(checkSession, 60000);
     checkSession(); // Initial check
 
     return () => {
       clearInterval(interval);
-      events.forEach((event) => {
-        window.removeEventListener(event, updateActivity);
-      });
     };
   }, [status, session]);
 
   const handleLogout = async () => {
-    localStorage.removeItem("lastActivity");
-    await signOut({ redirect: false });
-    router.push("/admin/login");
+    await signOut({
+      callbackUrl: "/admin/login",
+      redirect: true,
+    });
   };
 
-  const handleExtendSession = () => {
-    // Refresh session by updating last activity
-    localStorage.setItem("lastActivity", Date.now().toString());
+  const handleExtendSession = async () => {
+    // Force refresh session
+    router.refresh();
     setShowWarning(false);
   };
 
@@ -101,8 +81,8 @@ export const SessionTimeoutHandler = () => {
               Session akan berakhir
             </h3>
             <p className="text-sm text-gray-600 mb-3">
-              Sesi Anda akan berakhir dalam {timeLeft} menit karena tidak ada
-              aktivitas
+              Sesi Anda akan berakhir dalam {timeLeft} menit. Klik lanjutkan
+              untuk tetap login.
             </p>
             <div className="flex gap-2">
               <button
