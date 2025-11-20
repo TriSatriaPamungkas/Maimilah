@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 // app/api/auth/[...nextauth]/route.ts
 import NextAuth, { NextAuthOptions } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
@@ -90,6 +89,7 @@ export const authOptions: NextAuthOptions = {
         session.user.username = token.username as string;
         session.user.role = token.role as string;
         // Expose exp untuk SessionTimeoutHandler
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         (session as any).exp = token.exp;
       }
       return session;
@@ -109,8 +109,22 @@ export const authOptions: NextAuthOptions = {
   },
 
   session: {
-    strategy: "jwt",
+    strategy: "jwt" as const,
     maxAge: 4 * 60 * 60, // 4 jam
+  },
+
+  cookies: {
+    sessionToken: {
+      name: `${
+        process.env.NODE_ENV === "production" ? "__Secure-" : ""
+      }next-auth.session-token`,
+      options: {
+        httpOnly: true,
+        sameSite: "lax" as const,
+        path: "/",
+        secure: process.env.NODE_ENV === "production",
+      },
+    },
   },
 
   secret: process.env.NEXTAUTH_SECRET,

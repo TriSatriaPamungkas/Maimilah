@@ -18,6 +18,23 @@ export const LoginFormDebug: React.FC = () => {
     addLog("🧪 Testing direct redirect...");
 
     try {
+      // Check cookies first
+      addLog("🍪 Checking cookies...");
+      const cookies = document.cookie;
+      const hasSessionToken = cookies.includes("next-auth.session-token");
+      const hasSecureToken = cookies.includes(
+        "__Secure-next-auth.session-token"
+      );
+
+      addLog(`🍪 Regular session token: ${hasSessionToken ? "YES" : "NO"}`);
+      addLog(`🍪 Secure session token: ${hasSecureToken ? "YES" : "NO"}`);
+
+      if (!hasSessionToken && !hasSecureToken) {
+        addLog("❌ NO SESSION COOKIE FOUND!");
+        addLog("💡 This is why middleware can't authenticate");
+        return;
+      }
+
       // First check dashboard directly with fetch
       addLog("📡 Fetching /admin/dashboard...");
       const response = await fetch("/admin/dashboard", {
@@ -31,12 +48,20 @@ export const LoginFormDebug: React.FC = () => {
       // Check middleware headers
       const middlewareAction = response.headers.get("X-Middleware-Action");
       const tokenStatus = response.headers.get("X-Token-Status");
+      const cookieExists = response.headers.get("X-Cookie-Exists");
+      const middlewareError = response.headers.get("X-Middleware-Error");
 
       if (middlewareAction) {
         addLog(`🔒 Middleware Action: ${middlewareAction}`);
       }
       if (tokenStatus) {
         addLog(`🔑 Token Status: ${tokenStatus}`);
+      }
+      if (cookieExists) {
+        addLog(`🍪 Middleware sees cookie: ${cookieExists}`);
+      }
+      if (middlewareError) {
+        addLog(`❌ Middleware Error: ${middlewareError}`);
       }
 
       // If response.url is still login page, middleware is redirecting
