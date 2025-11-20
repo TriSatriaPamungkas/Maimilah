@@ -113,20 +113,6 @@ export const authOptions: NextAuthOptions = {
     maxAge: 4 * 60 * 60, // 4 jam
   },
 
-  cookies: {
-    sessionToken: {
-      name: `${
-        process.env.NODE_ENV === "production" ? "__Secure-" : ""
-      }next-auth.session-token`,
-      options: {
-        httpOnly: true,
-        sameSite: "lax" as const,
-        path: "/",
-        secure: process.env.NODE_ENV === "production",
-      },
-    },
-  },
-
   secret: process.env.NEXTAUTH_SECRET,
 
   // PENTING: false di production untuk performa

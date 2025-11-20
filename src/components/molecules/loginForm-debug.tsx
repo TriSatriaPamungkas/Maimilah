@@ -4,7 +4,7 @@
 import React, { useState } from "react";
 import { signIn } from "next-auth/react";
 
-export const LoginFormDebug: React.FC = () => {
+export function LoginFormDebug() {
   const [form, setForm] = useState({ username: "", password: "" });
   const [logs, setLogs] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -12,6 +12,35 @@ export const LoginFormDebug: React.FC = () => {
   const addLog = (msg: string) => {
     console.log(msg);
     setLogs((prev) => [...prev, `${new Date().toLocaleTimeString()}: ${msg}`]);
+  };
+
+  const checkEnv = async () => {
+    addLog("🔍 Checking environment...");
+
+    try {
+      const response = await fetch("/api/debug/env");
+      const data = await response.json();
+
+      addLog("📊 Environment Variables:");
+      addLog(`  NEXTAUTH_URL: ${data.nextauthUrl}`);
+      addLog(
+        `  NEXTAUTH_SECRET: ${data.nextauthSecretExists ? "SET" : "NOT SET"}`
+      );
+      addLog(`  NODE_ENV: ${data.nodeEnv}`);
+      addLog(`  Has Session: ${data.hasSession ? "YES" : "NO"}`);
+      addLog(`  Session User: ${data.sessionUser}`);
+
+      if (data.nextauthUrl === "NOT SET") {
+        addLog("❌ NEXTAUTH_URL not set in Vercel!");
+        addLog("💡 Set it in Vercel Dashboard → Environment Variables");
+      }
+
+      if (!data.nextauthSecretExists) {
+        addLog("❌ NEXTAUTH_SECRET not set!");
+      }
+    } catch (err) {
+      addLog("❌ Failed to check env: " + err);
+    }
   };
 
   const testRedirect = async () => {
@@ -170,6 +199,13 @@ export const LoginFormDebug: React.FC = () => {
             </form>
 
             <button
+              onClick={checkEnv}
+              className="w-full mt-2 bg-purple-600 text-white py-2 rounded text-sm font-medium"
+            >
+              🔍 Check Environment
+            </button>
+
+            <button
               onClick={testRedirect}
               className="w-full mt-2 bg-green-600 text-white py-2 rounded text-sm font-medium"
             >
@@ -202,9 +238,9 @@ export const LoginFormDebug: React.FC = () => {
 
         <div className="text-xs text-gray-500 text-center space-y-1">
           <p>⚠️ This is DEBUG mode - check logs carefully</p>
-          <p>💡 Try Test Direct Redirect first to check if redirect works</p>
+          <p>💡 Try Check Environment first, then Test Direct Redirect</p>
         </div>
       </div>
     </div>
   );
-};
+}
