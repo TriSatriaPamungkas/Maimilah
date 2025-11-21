@@ -133,7 +133,7 @@ export const LoginForm: React.FC = () => {
             required
             disabled={isLoading}
             placeholder="Masukkan username"
-            className="w-full border border-gray-300 rounded-lg px-3 py-3 text-sm focus:ring-2 focus:ring-green-500 focus:border-transparent disabled:bg-gray-100 disabled:cursor-not-allowed"
+            className="w-full border border-gray-300 rounded-lg px-3 py-3 text-sm text-black focus:ring-2 focus:ring-green-500 focus:border-transparent disabled:bg-gray-100 disabled:cursor-not-allowed"
           />
 
           <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -147,7 +147,7 @@ export const LoginForm: React.FC = () => {
               required
               disabled={isLoading}
               placeholder="Masukkan password"
-              className="w-full border border-gray-300 rounded-lg px-3 py-3 pr-10 text-sm focus:ring-2 focus:ring-green-500 focus:border-transparent disabled:bg-gray-100 disabled:cursor-not-allowed"
+              className="w-full border border-gray-300 rounded-lg px-3 py-3 pr-10 text-sm text-black focus:ring-2 focus:ring-green-500 focus:border-transparent disabled:bg-gray-100 disabled:cursor-not-allowed"
             />
             <button
               type="button"
