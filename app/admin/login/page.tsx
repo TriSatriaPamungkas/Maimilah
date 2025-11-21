@@ -1,7 +1,8 @@
+// app/admin/login/page.tsx
 "use client";
 
 import { Suspense } from "react";
-import { LoginFormDebug } from "@/src/components/molecules/loginForm-debug";
+import { LoginForm } from "@/src/components/molecules/loginForm";
 
 function LoginFormFallback() {
   return (
@@ -17,7 +18,7 @@ function LoginFormFallback() {
 export default function AdminLoginPage() {
   return (
     <Suspense fallback={<LoginFormFallback />}>
-      <LoginFormDebug />
+      <LoginForm />
     </Suspense>
   );
 }
