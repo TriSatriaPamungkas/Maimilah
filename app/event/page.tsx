@@ -1,5 +1,5 @@
 "use client";
-
+//app/event/page.tsx
 import { useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { Calendar, MapPin, CheckCircle, Search, ArrowLeft } from "lucide-react";

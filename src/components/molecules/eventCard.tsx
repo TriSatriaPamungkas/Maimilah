@@ -1,4 +1,5 @@
 "use client";
+//src/components/molecules/eventCard.tsx
 import React, { useState, useEffect } from "react";
 import { Button } from "@/src/components/atoms/button";
 import { Badge } from "@/src/components/atoms/badge";
@@ -66,31 +67,36 @@ export const EventCard: React.FC<EventCardProps> = ({
 
         const results = await Promise.all(participantPromises);
 
-        // Hitung total booked slots
+        // 🔧 FIX: Hitung total booked slots dengan logika yang benar
         const total = results.reduce((sum, result) => {
+          // Jika API gagal atau data tidak ada, hitung sebagai 1 slot (estimasi minimal)
           if (!result || !result.data) {
-            // Jika data tidak ada, anggap booking semua hari
-            return sum + numberOfDays;
+            console.warn("Participant data tidak ditemukan, estimasi 1 slot");
+            return sum + 1;
           }
 
           const participant: ParticipantData = result.data;
-          // Jika ada selectedDates, hitung jumlahnya
+
+          // Jika ada selectedDates dan berupa array dengan isi, hitung jumlahnya
           if (
             participant.selectedDates &&
-            Array.isArray(participant.selectedDates)
+            Array.isArray(participant.selectedDates) &&
+            participant.selectedDates.length > 0
           ) {
             return sum + participant.selectedDates.length;
           }
 
-          // Jika tidak ada selectedDates, anggap booking semua hari
-          return sum + numberOfDays;
+          // Jika selectedDates kosong atau undefined, hitung sebagai 1 slot
+          // (bukan numberOfDays karena bisa menyebabkan overcount)
+          console.warn("selectedDates tidak valid, estimasi 1 slot");
+          return sum + 1;
         }, 0);
 
         setBookedSlots(total);
       } catch (error) {
         console.error("Error fetching booked slots:", error);
-        // Fallback: anggap setiap participant booking semua hari
-        setBookedSlots((event.participants?.length || 0) * numberOfDays);
+        // Fallback: estimasi 1 slot per participant (bukan numberOfDays)
+        setBookedSlots(event.participants?.length || 0);
       } finally {
         setIsLoadingSlots(false);
       }
