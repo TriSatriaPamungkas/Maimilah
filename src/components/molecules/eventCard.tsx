@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
 //src/components/molecules/eventCard.tsx
 import React, { useState, useEffect } from "react";
@@ -48,60 +49,94 @@ export const EventCard: React.FC<EventCardProps> = ({
   const numberOfDays = getNumberOfDays();
   const totalQuota = event.quota * numberOfDays;
 
-  // 🆕 Fetch participant data untuk hitung total booked slots per hari
+  // 🆕 Fetch registrations untuk hitung total booked slots per hari
   useEffect(() => {
     const fetchBookedSlots = async () => {
+      // Jika tidak ada participants atau eventId, set 0
       if (!event.participants || event.participants.length === 0) {
+        setBookedSlots(0);
+        return;
+      }
+
+      const eventId = event._id || event.id;
+      if (!eventId) {
+        console.error("Event ID not found");
         setBookedSlots(0);
         return;
       }
 
       setIsLoadingSlots(true);
       try {
-        // Fetch semua participant data
-        const participantPromises = event.participants.map((participantId) =>
-          fetch(`/api/participant/${participantId}`)
-            .then((res) => (res.ok ? res.json() : null))
-            .catch(() => null)
+        // 🔧 FIX: Fetch semua registrasi berdasarkan eventId
+        const response = await fetch(`/api/register?eventId=${eventId}`);
+
+        if (!response.ok) {
+          console.error("Failed to fetch registrations");
+          setBookedSlots(0);
+          return;
+        }
+
+        const result = await response.json();
+
+        console.log("📊 Registration data:", result);
+
+        if (!result.success || !result.data) {
+          console.warn("No registration data found");
+          setBookedSlots(0);
+          return;
+        }
+
+        const registrations = result.data;
+        console.log(
+          `✅ Found ${registrations.length} registrations for event ${eventId}`
         );
 
-        const results = await Promise.all(participantPromises);
-
-        // 🔧 FIX: Hitung slot terboking per hari, lalu jumlahkan
+        // 🔧 Hitung slot terboking per hari
         // Struktur: { "2025-11-28": 5, "2025-11-29": 2, ... }
         const bookedPerDay: Record<string, number> = {};
 
-        results.forEach((result) => {
-          if (!result || !result.data) {
-            return; // Skip participant yang datanya tidak valid
-          }
+        registrations.forEach((registration: any, index: number) => {
+          console.log(`Processing registration ${index}:`, registration);
 
-          const participant: ParticipantData = result.data;
+          const selectedDates = registration.selectedDates;
+          console.log(`  selectedDates:`, selectedDates);
 
           // Jika ada selectedDates, tambahkan ke counter per tanggal
           if (
-            participant.selectedDates &&
-            Array.isArray(participant.selectedDates) &&
-            participant.selectedDates.length > 0
+            selectedDates &&
+            Array.isArray(selectedDates) &&
+            selectedDates.length > 0
           ) {
-            participant.selectedDates.forEach((date) => {
+            console.log(`  ✅ Has ${selectedDates.length} selected dates`);
+
+            selectedDates.forEach((date: string) => {
               // Normalize date ke format YYYY-MM-DD
               const normalizedDate = new Date(date).toISOString().split("T")[0];
               bookedPerDay[normalizedDate] =
                 (bookedPerDay[normalizedDate] || 0) + 1;
+              console.log(
+                `    Added to ${normalizedDate}, now count: ${bookedPerDay[normalizedDate]}`
+              );
             });
+          } else {
+            console.warn(
+              `  ❌ No valid selectedDates for registration ${index}`
+            );
           }
         });
 
-        // Total booked slots = jumlah semua participant di semua hari
+        console.log("📊 Booked per day:", bookedPerDay);
+
+        // Total booked slots = jumlah semua registrasi di semua hari
         const total = Object.values(bookedPerDay).reduce(
           (sum, count) => sum + count,
           0
         );
 
+        console.log(`✅ Total booked slots: ${total}`);
         setBookedSlots(total);
       } catch (error) {
-        console.error("Error fetching booked slots:", error);
+        console.error("❌ Error fetching booked slots:", error);
         setBookedSlots(0);
       } finally {
         setIsLoadingSlots(false);
