@@ -48,7 +48,7 @@ export const EventCard: React.FC<EventCardProps> = ({
   const numberOfDays = getNumberOfDays();
   const totalQuota = event.quota * numberOfDays;
 
-  // 🆕 Fetch participant data untuk hitung total booked slots
+  // 🆕 Fetch participant data untuk hitung total booked slots per hari
   useEffect(() => {
     const fetchBookedSlots = async () => {
       if (!event.participants || event.participants.length === 0) {
@@ -67,39 +67,41 @@ export const EventCard: React.FC<EventCardProps> = ({
 
         const results = await Promise.all(participantPromises);
 
-        // 🔧 FIX: Hitung total booked slots berdasarkan tanggal yang dipilih setiap participant
-        const total = results.reduce((sum, result) => {
-          // Jika API gagal atau data tidak ada, skip participant ini
+        // 🔧 FIX: Hitung slot terboking per hari, lalu jumlahkan
+        // Struktur: { "2025-11-28": 5, "2025-11-29": 2, ... }
+        const bookedPerDay: Record<string, number> = {};
+
+        results.forEach((result) => {
           if (!result || !result.data) {
-            console.warn(
-              "Participant data tidak ditemukan, skip dari perhitungan"
-            );
-            return sum;
+            return; // Skip participant yang datanya tidak valid
           }
 
           const participant: ParticipantData = result.data;
 
-          // Jika ada selectedDates dan berupa array dengan isi, hitung jumlah hari yang diboking
+          // Jika ada selectedDates, tambahkan ke counter per tanggal
           if (
             participant.selectedDates &&
             Array.isArray(participant.selectedDates) &&
             participant.selectedDates.length > 0
           ) {
-            // Setiap tanggal yang dipilih = 1 slot terboking
-            return sum + participant.selectedDates.length;
+            participant.selectedDates.forEach((date) => {
+              // Normalize date ke format YYYY-MM-DD
+              const normalizedDate = new Date(date).toISOString().split("T")[0];
+              bookedPerDay[normalizedDate] =
+                (bookedPerDay[normalizedDate] || 0) + 1;
+            });
           }
+        });
 
-          // Jika selectedDates kosong atau undefined, skip dari perhitungan
-          console.warn(
-            "selectedDates tidak valid untuk participant, skip dari perhitungan"
-          );
-          return sum;
-        }, 0);
+        // Total booked slots = jumlah semua participant di semua hari
+        const total = Object.values(bookedPerDay).reduce(
+          (sum, count) => sum + count,
+          0
+        );
 
         setBookedSlots(total);
       } catch (error) {
         console.error("Error fetching booked slots:", error);
-        // Fallback: set 0 karena tidak bisa menghitung dengan akurat
         setBookedSlots(0);
       } finally {
         setIsLoadingSlots(false);
