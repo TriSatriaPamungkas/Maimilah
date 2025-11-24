@@ -117,15 +117,27 @@ export const useEventStore = create<EventStore>()(
 
           set((state) => ({ events: [...state.events, newEvent] }));
 
-          // ✅ LOG ACTIVITY
-          logActivity(
-            ActivityType.EVENT_CREATED,
-            `Event baru dibuat: ${event.title}`,
-            {
-              eventId: newEvent._id || newEvent.id,
-              eventTitle: event.title,
-            }
+          // ✅ LOG ACTIVITY - Added debugging
+          console.log(
+            "📝 [EVENT] Attempting to log activity for new event:",
+            event.title
           );
+          try {
+            logActivity(
+              ActivityType.EVENT_CREATED,
+              `Event baru dibuat: ${event.title}`,
+              {
+                eventId: newEvent._id || newEvent.id,
+                eventTitle: event.title,
+              }
+            );
+            console.log(
+              "✅ [EVENT] Activity logged successfully for:",
+              event.title
+            );
+          } catch (logErr) {
+            console.error("❌ [EVENT] Failed to log activity:", logErr);
+          }
         } catch (err: any) {
           console.error("Error addEvent:", err);
           set({ error: err.message });
@@ -157,17 +169,29 @@ export const useEventStore = create<EventStore>()(
             ),
           }));
 
-          // ✅ LOG ACTIVITY
+          // ✅ LOG ACTIVITY - Added debugging
           const eventTitle =
             updatedEvent.title || currentEvent?.title || "Unknown";
-          logActivity(
-            ActivityType.EVENT_UPDATED,
-            `Event diperbarui: ${eventTitle}`,
-            {
-              eventId: id,
-              eventTitle: eventTitle,
-            }
+          console.log(
+            "📝 [EVENT] Attempting to log activity for updated event:",
+            eventTitle
           );
+          try {
+            logActivity(
+              ActivityType.EVENT_UPDATED,
+              `Event diperbarui: ${eventTitle}`,
+              {
+                eventId: id,
+                eventTitle: eventTitle,
+              }
+            );
+            console.log(
+              "✅ [EVENT] Activity logged successfully for:",
+              eventTitle
+            );
+          } catch (logErr) {
+            console.error("❌ [EVENT] Failed to log activity:", logErr);
+          }
         } catch (err: any) {
           console.error("Error updateEvent:", err);
           set({ error: err.message });
@@ -188,16 +212,28 @@ export const useEventStore = create<EventStore>()(
             events: state.events.filter((e) => e._id !== id && e.id !== id),
           }));
 
-          // ✅ LOG ACTIVITY
+          // ✅ LOG ACTIVITY - Added debugging
           if (event) {
-            logActivity(
-              ActivityType.EVENT_DELETED,
-              `Event dihapus: ${event.title}`,
-              {
-                eventId: id,
-                eventTitle: event.title,
-              }
+            console.log(
+              "📝 [EVENT] Attempting to log activity for deleted event:",
+              event.title
             );
+            try {
+              logActivity(
+                ActivityType.EVENT_DELETED,
+                `Event dihapus: ${event.title}`,
+                {
+                  eventId: id,
+                  eventTitle: event.title,
+                }
+              );
+              console.log(
+                "✅ [EVENT] Activity logged successfully for:",
+                event.title
+              );
+            } catch (logErr) {
+              console.error("❌ [EVENT] Failed to log activity:", logErr);
+            }
           }
         } catch (err: any) {
           console.error("Error deleteEvent:", err);
@@ -240,17 +276,26 @@ export const useEventStore = create<EventStore>()(
             ),
           }));
 
-          // ✅ LOG ACTIVITY
+          // ✅ LOG ACTIVITY - Added debugging
           if (event) {
-            logActivity(
-              ActivityType.PARTICIPANT_REGISTERED,
-              `Seseorang telah mendaftar di: ${event.title}`,
-              {
-                eventId: eventId,
-                eventTitle: event.title,
-                participantName: participantId, // atau bisa diganti dengan nama participant jika ada
-              }
+            console.log(
+              "📝 [PARTICIPANT] Attempting to log activity for participant in:",
+              event.title
             );
+            try {
+              logActivity(
+                ActivityType.PARTICIPANT_REGISTERED,
+                `Seseorang telah mendaftar di: ${event.title}`,
+                {
+                  eventId: eventId,
+                  eventTitle: event.title,
+                  participantName: participantId, // atau bisa diganti dengan nama participant jika ada
+                }
+              );
+              console.log("✅ [PARTICIPANT] Activity logged successfully");
+            } catch (logErr) {
+              console.error("❌ [PARTICIPANT] Failed to log activity:", logErr);
+            }
           }
         } catch (err: any) {
           console.error("Error addParticipant:", err);

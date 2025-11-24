@@ -176,7 +176,7 @@ const ParticipantDetailPage: React.FC = () => {
         csvContent += "Belum ada partisipan terdaftar\n";
       } else {
         dateParticipants.forEach((p, i) => {
-          csvContent += `${i + 1},"${p.name}","${p.email}","${
+          csvContent += `${i + 1},"${p.name}","${p.email}","wa.me/${
             p.phone || "-"
           }","${p.domisili || "-"}"\n`;
         });

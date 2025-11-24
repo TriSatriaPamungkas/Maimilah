@@ -1,4 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
+//src/store/useRegistrationStore.ts
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import { EventSummary, EventSchedule } from "./useEventStore";
@@ -114,13 +115,21 @@ export const useRegistrationStore = create<RegistrationState>()(
             isLoading: false,
           }));
 
-          // ✅ LOG ACTIVITY - Ambil event title dari useEventStore
+          // ✅ LOG ACTIVITY - Ambil event title dari useEventStore - Added debugging
+          console.log(
+            "📝 [REGISTRATION] Attempting to log activity for participant:",
+            payload.name
+          );
           try {
             // Dynamic import untuk menghindari circular dependency
             const { useEventStore } = await import("@/src/store/useEventStore");
             const event = useEventStore.getState().getEventById(eventId);
 
             if (event) {
+              console.log(
+                "📝 [REGISTRATION] Found event for logging:",
+                event.title
+              );
               logActivity(
                 ActivityType.PARTICIPANT_REGISTERED,
                 `Seseorang telah mendaftar di: ${event.title}`,
@@ -129,10 +138,17 @@ export const useRegistrationStore = create<RegistrationState>()(
                   participantName: payload.name,
                 }
               );
-              console.log("✅ Activity logged for participant registration");
+              console.log(
+                "✅ [REGISTRATION] Activity logged successfully for:",
+                payload.name
+              );
+            } else {
+              console.warn(
+                "⚠️ [REGISTRATION] Event not found, cannot log activity"
+              );
             }
           } catch (logErr) {
-            console.error("⚠️ Failed to log activity:", logErr);
+            console.error("❌ [REGISTRATION] Failed to log activity:", logErr);
             // Don't throw, activity logging is not critical
           }
         } catch (err: any) {
