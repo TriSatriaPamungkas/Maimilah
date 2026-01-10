@@ -3,6 +3,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import Registration from "@/src/models/registration";
 import { Event, connectDB } from "@/src/models/event";
+import { sendVolunteerConfirmation } from "@/src/lib/emailServices"; // ✅ Import email service
 
 /**
  * ✅ GET /api/register?eventId=...
@@ -49,7 +50,7 @@ export async function GET(req: NextRequest) {
 
 /**
  * ✅ POST /api/register
- * Tambahkan peserta baru ke collection "registration"
+ * Tambahkan peserta baru ke collection "registration" + Kirim Email
  */
 export async function POST(req: NextRequest) {
   try {
@@ -60,7 +61,7 @@ export async function POST(req: NextRequest) {
       eventId,
       name,
       email,
-      phone, // ✅ Add phone field
+      phone,
       domisili,
       source,
       reason,
@@ -71,7 +72,7 @@ export async function POST(req: NextRequest) {
       eventId,
       name,
       email,
-      phone, // ✅ Log phone
+      phone,
       domisili,
       source,
       reason,
@@ -86,7 +87,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // ✅ Validasi phone (optional but recommended)
+    // ✅ Validasi phone
     if (!phone) {
       return NextResponse.json(
         { success: false, error: "Nomor telepon wajib diisi" },
@@ -142,7 +143,7 @@ export async function POST(req: NextRequest) {
       eventId,
       name,
       email,
-      phone, // ✅ Save phone to MongoDB
+      phone,
       domisili,
       source,
       reason,
@@ -154,16 +155,44 @@ export async function POST(req: NextRequest) {
       _id: registration._id,
       name: registration.name,
       email: registration.email,
-      phone: registration.phone, // ✅ Verify phone is saved
+      phone: registration.phone,
     });
 
-    // 🔄 Update list peserta di model Event (optional, cuma ID aja)
+    // 🔄 Update list peserta di model Event
     event.participants = [...(event.participants || []), registration._id];
     await event.save();
+
+    // 📧 Kirim email konfirmasi
+    try {
+      await sendVolunteerConfirmation({
+        name: registration.name,
+        email: registration.email,
+        eventName: event.title,
+        eventLocation: event.location,
+        selectedDates: registration.selectedDates,
+      });
+
+      console.log("✅ Confirmation email sent to:", registration.email);
+    } catch (emailError: any) {
+      console.error("❌ Email error:", emailError);
+      // Data sudah tersimpan, tapi email gagal
+      // Return success dengan warning
+      return NextResponse.json(
+        {
+          success: true,
+          data: registration,
+          _id: registration._id,
+          registeredAt: registration.registeredAt,
+          warning: "Pendaftaran berhasil, namun email konfirmasi gagal dikirim",
+        },
+        { status: 201 }
+      );
+    }
 
     return NextResponse.json(
       {
         success: true,
+        message: "Pendaftaran berhasil! Email konfirmasi telah dikirim.",
         data: registration,
         _id: registration._id,
         registeredAt: registration.registeredAt,

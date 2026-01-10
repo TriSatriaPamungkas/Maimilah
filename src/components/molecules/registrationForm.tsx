@@ -1,3 +1,4 @@
+// components/molecules/registrationForm.tsx
 "use client";
 import React, { useState, useEffect } from "react";
 import { Select } from "@/src/components/atoms/select";
@@ -71,8 +72,8 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({
     setIsSubmitting(true);
 
     // Validate phone
-    if (!form.phone || form.phone.length < 10 || form.phone.length > 13) {
-      alert("Nomor telepon harus 10-13 digit!");
+    if (!form.phone || form.phone.length < 10 || form.phone.length > 15) {
+      alert("Nomor telepon harus 10-15 digit!");
       setIsSubmitting(false);
       return;
     }
@@ -116,11 +117,11 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({
       };
 
       console.log("📤 Submitting registration with data:", registrationData);
-      console.log("📱 Phone value:", form.phone, "Length:", form.phone.length);
 
-      await registerParticipant(event.id, registrationData);
+      // ✅ Call API yang sudah diupdate
+      const result = await registerParticipant(event.id, registrationData);
 
-      console.log("✅ Registration successful");
+      console.log("✅ Registration successful:", result);
 
       // Show success toast
       setShowSuccess(true);

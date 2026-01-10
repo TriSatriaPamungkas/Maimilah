@@ -1,3 +1,4 @@
+//app/event/[id]/daftar/page.tsx
 "use client";
 import { useParams, useRouter } from "next/navigation";
 import { useEffect } from "react";
