@@ -10,7 +10,8 @@ import { ActivityModel } from "@/src/models/activity";
 import { Calendar, Users, MessageSquare, TrendingUp } from "lucide-react";
 
 const AdminDashboardPage: React.FC = () => {
-  const { events, fetchEvents, getParticipantsCount } = useEventStore();
+  // ✅ Update: Menggunakan getEventBookedCount untuk akurasi data
+  const { events, fetchEvents, getEventBookedCount } = useEventStore();
   const { feedbacks, fetchFeedbacks } = useFeedbackStore();
   const { activities, checkAndClearDaily } = useActivityStore();
   const [totalParticipants, setTotalParticipants] = useState(0);
@@ -33,13 +34,14 @@ const AdminDashboardPage: React.FC = () => {
   }, [fetchEvents, fetchFeedbacks]);
 
   useEffect(() => {
-    // Hitung total partisipan dari semua event
+    // ✅ Update: Hitung total okupansi riil (booked slots) dari semua event
+    // Ini lebih akurat karena menghitung unit hari/shift yang diambil peserta
     const total = events.reduce((sum, event) => {
       const eventId = event._id || event.id;
-      return sum + (eventId ? getParticipantsCount(eventId) : 0);
+      return sum + (eventId ? getEventBookedCount(eventId) : 0);
     }, 0);
     setTotalParticipants(total);
-  }, [events, getParticipantsCount]);
+  }, [events, getEventBookedCount]);
 
   // Calculate stats
   const totalEvents = events.length;
@@ -84,7 +86,7 @@ const AdminDashboardPage: React.FC = () => {
             <div className="text-xs text-gray-500">Active events</div>
           </div>
 
-          {/* Total Participants */}
+          {/* Total Participants (Booked Slots) */}
           <div className="bg-white p-6 rounded-lg shadow-sm border-l-4 border-l-blue-500">
             <div className="flex items-center justify-between mb-2">
               <div className="bg-blue-100 p-3 rounded-lg">
@@ -94,8 +96,8 @@ const AdminDashboardPage: React.FC = () => {
                 {totalParticipants}
               </div>
             </div>
-            <div className="text-sm text-gray-600 mb-1">TOTAL PARTICIPANTS</div>
-            <div className="text-xs text-gray-500">Registered users</div>
+            <div className="text-sm text-gray-600 mb-1">TOTAL PARTISIPAN</div>
+            <div className="text-xs text-gray-500">Total unit slot terisi</div>
           </div>
 
           {/* Total Feedbacks */}
@@ -141,10 +143,10 @@ const AdminDashboardPage: React.FC = () => {
                 {displayedActivities.map((activity) => {
                   const icon = ActivityModel.getActivityIcon(activity.type);
                   const colorClass = ActivityModel.getActivityColor(
-                    activity.type
+                    activity.type,
                   );
                   const timeAgo = ActivityModel.getRelativeTime(
-                    activity.createdAt
+                    activity.createdAt,
                   );
 
                   return (
@@ -186,7 +188,6 @@ const AdminDashboardPage: React.FC = () => {
                 })}
               </div>
 
-              {/* ✅ Show remaining activities count */}
               {remainingActivities > 0 && (
                 <div className="mt-4 pt-4 border-t border-gray-200">
                   <button className="w-full flex items-center justify-center gap-2 text-sm text-gray-600 hover:text-gray-800 py-2 rounded-lg hover:bg-gray-50 transition-colors">

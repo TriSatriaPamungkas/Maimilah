@@ -1,10 +1,10 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
 //src/components/molecules/eventCard.tsx
-import React, { useState, useEffect } from "react";
+import React from "react";
 import { Button } from "@/src/components/atoms/button";
 import { Badge } from "@/src/components/atoms/badge";
-import { EventSummary } from "@/src/store/useEventStore";
+import { EventSummary, useEventStore } from "@/src/store/useEventStore";
 
 interface EventCardProps {
   event: EventSummary;
@@ -13,29 +13,30 @@ interface EventCardProps {
   variant?: "user" | "admin";
 }
 
-interface ParticipantData {
-  _id: string;
-  selectedDates?: string[];
-}
-
 export const EventCard: React.FC<EventCardProps> = ({
   event,
   onViewDetails,
   onRegister,
   variant = "user",
 }) => {
-  const [bookedSlots, setBookedSlots] = useState(0);
-  const [isLoadingSlots, setIsLoadingSlots] = useState(false);
+  // 🔹 Ambil data dan status loading terpusat dari Store
+  const getEventBookedCount = useEventStore(
+    (state) => state.getEventBookedCount,
+  );
+  const isLoadingSlots = useEventStore((state) => state.isLoading);
 
-  // 🆕 Calculate number of days for the event
+  const eventId = event._id || event.id;
+  const bookedSlots = eventId ? getEventBookedCount(eventId) : 0;
+
+  // 🔹 Calculate number of days for the event
   const getNumberOfDays = (): number => {
     if (!event.schedule || !event.schedule.type) {
       return 1;
     }
 
     if (event.schedule.type === "range") {
-      const startDate = new Date(event.schedule.startDate);
-      const endDate = new Date(event.schedule.endDate);
+      const startDate = new Date(event.schedule.startDate!);
+      const endDate = new Date(event.schedule.endDate!);
       const diffTime = Math.abs(endDate.getTime() - startDate.getTime());
       const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
       return diffDays;
@@ -47,109 +48,16 @@ export const EventCard: React.FC<EventCardProps> = ({
   };
 
   const numberOfDays = getNumberOfDays();
-  const totalQuota = event.quota * numberOfDays;
+  const quotaPerDay = event.quota;
 
-  // 🆕 Fetch registrations untuk hitung total booked slots per hari
-  useEffect(() => {
-    const fetchBookedSlots = async () => {
-      // Jika tidak ada participants atau eventId, set 0
-      if (!event.participants || event.participants.length === 0) {
-        setBookedSlots(0);
-        return;
-      }
+  // Total slots available = quota × number of days
+  const totalSlots = quotaPerDay * numberOfDays;
 
-      const eventId = event._id || event.id;
-      if (!eventId) {
-        console.error("Event ID not found");
-        setBookedSlots(0);
-        return;
-      }
+  const availableSlots = totalSlots - bookedSlots;
+  const bookedPercentage =
+    totalSlots > 0 ? (bookedSlots / totalSlots) * 100 : 0;
 
-      setIsLoadingSlots(true);
-      try {
-        // 🔧 FIX: Fetch semua registrasi berdasarkan eventId
-        const response = await fetch(`/api/register?eventId=${eventId}`);
-
-        if (!response.ok) {
-          console.error("Failed to fetch registrations");
-          setBookedSlots(0);
-          return;
-        }
-
-        const result = await response.json();
-
-        console.log("📊 Registration data:", result);
-
-        if (!result.success || !result.data) {
-          console.warn("No registration data found");
-          setBookedSlots(0);
-          return;
-        }
-
-        const registrations = result.data;
-        console.log(
-          `✅ Found ${registrations.length} registrations for event ${eventId}`
-        );
-
-        // 🔧 Hitung slot terboking per hari
-        // Struktur: { "2025-11-28": 5, "2025-11-29": 2, ... }
-        const bookedPerDay: Record<string, number> = {};
-
-        registrations.forEach((registration: any, index: number) => {
-          console.log(`Processing registration ${index}:`, registration);
-
-          const selectedDates = registration.selectedDates;
-          console.log(`  selectedDates:`, selectedDates);
-
-          // Jika ada selectedDates, tambahkan ke counter per tanggal
-          if (
-            selectedDates &&
-            Array.isArray(selectedDates) &&
-            selectedDates.length > 0
-          ) {
-            console.log(`  ✅ Has ${selectedDates.length} selected dates`);
-
-            selectedDates.forEach((date: string) => {
-              // Normalize date ke format YYYY-MM-DD
-              const normalizedDate = new Date(date).toISOString().split("T")[0];
-              bookedPerDay[normalizedDate] =
-                (bookedPerDay[normalizedDate] || 0) + 1;
-              console.log(
-                `    Added to ${normalizedDate}, now count: ${bookedPerDay[normalizedDate]}`
-              );
-            });
-          } else {
-            console.warn(
-              `  ❌ No valid selectedDates for registration ${index}`
-            );
-          }
-        });
-
-        console.log("📊 Booked per day:", bookedPerDay);
-
-        // Total booked slots = jumlah semua registrasi di semua hari
-        const total = Object.values(bookedPerDay).reduce(
-          (sum, count) => sum + count,
-          0
-        );
-
-        console.log(`✅ Total booked slots: ${total}`);
-        setBookedSlots(total);
-      } catch (error) {
-        console.error("❌ Error fetching booked slots:", error);
-        setBookedSlots(0);
-      } finally {
-        setIsLoadingSlots(false);
-      }
-    };
-
-    fetchBookedSlots();
-  }, [event.participants, event._id, event.id, numberOfDays]);
-
-  const remainingQuota = totalQuota - bookedSlots;
-  const quotaPercentage = totalQuota > 0 ? (bookedSlots / totalQuota) * 100 : 0;
-
-  // format tanggal ke gaya Indo
+  // 🔹 Format date to Indonesian locale
   const formatDate = (d: string) =>
     new Date(d).toLocaleDateString("id-ID", {
       day: "2-digit",
@@ -159,7 +67,7 @@ export const EventCard: React.FC<EventCardProps> = ({
 
   const now = new Date();
 
-  // Fix: Validasi schedule sebelum mengakses propertinya
+  // 🔹 Check if event has ended
   const isPast = (() => {
     if (!event.schedule || !event.schedule.type) {
       return false;
@@ -178,6 +86,20 @@ export const EventCard: React.FC<EventCardProps> = ({
     return false;
   })();
 
+  // 🔹 Format shifts untuk ditampilkan
+  const formatShifts = (
+    shifts: Array<{ startTime: string; endTime: string }> | undefined,
+  ) => {
+    if (!shifts || shifts.length === 0) return "Waktu belum ditentukan";
+
+    if (shifts.length === 1) {
+      return `${shifts[0].startTime} - ${shifts[0].endTime} WITA`;
+    }
+
+    return `${shifts.length} shift tersedia`;
+  };
+
+  // 🔹 Render full schedule (for user variant)
   const renderSchedule = () => {
     if (!event.schedule || !event.schedule.type) {
       return (
@@ -186,14 +108,14 @@ export const EventCard: React.FC<EventCardProps> = ({
     }
 
     if (event.schedule.type === "range") {
-      const { startDate, endDate, startTime, endTime } = event.schedule;
+      const { startDate, endDate, shifts } = event.schedule;
       return (
         <>
           <span className="font-medium text-gray-700">Tanggal: </span>
-          {`${formatDate(startDate)} - ${formatDate(endDate)}`}
+          {`${formatDate(startDate!)} - ${formatDate(endDate!)}`}
           <br />
           <span className="font-medium text-gray-700">Waktu: </span>
-          {`${startTime} - ${endTime} WITA`}
+          {formatShifts(shifts)}
         </>
       );
     } else if (event.schedule.type === "selected" && event.schedule.schedule) {
@@ -204,7 +126,7 @@ export const EventCard: React.FC<EventCardProps> = ({
               <span className="font-medium text-gray-700">
                 {formatDate(s.date)}:
               </span>{" "}
-              {`${s.startTime} - ${s.endTime} WITA`}
+              {formatShifts(s.shifts)}
             </div>
           ))}
         </div>
@@ -214,18 +136,18 @@ export const EventCard: React.FC<EventCardProps> = ({
     return <span className="text-gray-500 text-sm">Jadwal tidak valid</span>;
   };
 
-  // Render compact untuk admin
+  // 🔹 Render compact schedule (for admin variant)
   const renderScheduleCompact = () => {
     if (!event.schedule || !event.schedule.type) {
       return "Jadwal belum ditentukan";
     }
 
     if (event.schedule.type === "range") {
-      const { startDate, endDate, startTime, endTime } = event.schedule;
+      const { startDate, endDate, shifts } = event.schedule;
       return (
         <div className="text-sm text-gray-600">
-          <div>{`${formatDate(startDate)} - ${formatDate(endDate)}`}</div>
-          <div className="text-xs text-gray-500">{`${startTime} - ${endTime} WITA`}</div>
+          <div>{`${formatDate(startDate!)} - ${formatDate(endDate!)}`}</div>
+          <div className="text-xs text-gray-500">{formatShifts(shifts)}</div>
         </div>
       );
     } else if (event.schedule.type === "selected" && event.schedule.schedule) {
@@ -236,7 +158,7 @@ export const EventCard: React.FC<EventCardProps> = ({
         <div className="text-sm text-gray-600">
           <div>
             {formatDate(firstSchedule.date)}:{" "}
-            {`${firstSchedule.startTime} - ${firstSchedule.endTime} WITA`}
+            {formatShifts(firstSchedule.shifts)}
           </div>
           {hasMore && (
             <div className="text-xs text-gray-500">
@@ -250,11 +172,13 @@ export const EventCard: React.FC<EventCardProps> = ({
     return "Jadwal tidak valid";
   };
 
-  // Admin variant - compact design
+  // ========================================
+  // 🎨 ADMIN VARIANT - Compact Design
+  // ========================================
   if (variant === "admin") {
     return (
       <div className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm hover:shadow-md transition-shadow flex flex-col h-full">
-        {/* Header - Fixed height */}
+        {/* Header */}
         <div className="flex items-start justify-between mb-3 min-h-12">
           <h3 className="text-base font-semibold text-gray-800 leading-tight line-clamp-2 flex-1 pr-2">
             {event.title}
@@ -265,60 +189,58 @@ export const EventCard: React.FC<EventCardProps> = ({
           />
         </div>
 
-        {/* Deskripsi - Fixed 3 lines */}
+        {/* Description */}
         <p className="text-sm text-gray-600 line-clamp-3 mb-3 min-h-15">
           {event.description}
         </p>
 
-        {/* Info Section - Fixed height */}
+        {/* Info Section */}
         <div className="space-y-2 mb-3 grow">
-          {/* Lokasi */}
           <div className="text-sm">
             <span className="font-medium text-gray-700">Lokasi: </span>
             <span className="text-gray-600">{event.location}</span>
           </div>
 
-          {/* Tanggal - Compact */}
           <div className="text-sm">
             <span className="font-medium text-gray-700">Tanggal: </span>
             {renderScheduleCompact()}
           </div>
         </div>
 
-        {/* Progress Bar - Fixed height */}
+        {/* Progress Bar - Booked Slots */}
         <div className="mb-4">
           <div className="flex justify-between text-xs text-gray-600 mb-1.5">
             <span className="font-medium">
               {isLoadingSlots ? (
-                "Memuat..."
+                <span className="animate-pulse">Memuat data...</span>
               ) : (
                 <>
-                  Kuota Tersisa: {remainingQuota} dari {totalQuota}
+                  Terbooked: {bookedSlots} / {totalSlots} slot
                 </>
               )}
             </span>
-            <span className="font-medium">{Math.round(quotaPercentage)}%</span>
+            <span className="font-medium">{Math.round(bookedPercentage)}%</span>
           </div>
-          <div className="w-full bg-gray-200 rounded-full h-2">
+          <div className="w-full bg-gray-200 rounded-full h-2.5">
             <div
-              className={`h-2 rounded-full transition-all ${
-                quotaPercentage >= 80
+              className={`h-2.5 rounded-full transition-all duration-300 ${
+                bookedPercentage >= 80
                   ? "bg-red-500"
-                  : quotaPercentage >= 50
-                  ? "bg-yellow-500"
-                  : "bg-green-500"
+                  : bookedPercentage >= 50
+                    ? "bg-yellow-500"
+                    : "bg-green-500"
               }`}
-              style={{ width: `${Math.min(quotaPercentage, 100)}%` }}
+              style={{ width: `${Math.min(bookedPercentage, 100)}%` }}
             ></div>
           </div>
           {!isLoadingSlots && (
-            <div className="text-xs text-gray-500 mt-1">
-              {bookedSlots} slot terbooked dari {totalQuota} slot tersedia
+            <div className="text-xs text-gray-500 mt-1.5">
+              {availableSlots} slot tersisa • {numberOfDays} hari tersedia
             </div>
           )}
         </div>
 
-        {/* Button - Fixed at bottom */}
+        {/* Action Button */}
         <div className="mt-auto">
           {onViewDetails && (
             <Button
@@ -334,7 +256,9 @@ export const EventCard: React.FC<EventCardProps> = ({
     );
   }
 
-  // User variant - original full design
+  // ========================================
+  // 🎨 USER VARIANT - Full Design
+  // ========================================
   return (
     <div className="bg-white border border-gray-100 rounded-2xl p-5 shadow-sm hover:shadow-md transition flex flex-col h-full">
       {/* Header */}
@@ -348,13 +272,13 @@ export const EventCard: React.FC<EventCardProps> = ({
         />
       </div>
 
-      {/* Deskripsi */}
+      {/* Description */}
       <p className="text-sm text-gray-600 line-clamp-3 mb-3 min-h-15">
         {event.description}
       </p>
 
-      {/* Lokasi & jadwal */}
-      <div className="space-y-2 mb-3 grow text-sm text-gray-500 ">
+      {/* Location & Schedule */}
+      <div className="space-y-2 mb-3 grow text-sm text-gray-500">
         <div>
           <span className="font-medium text-gray-700">Lokasi: </span>
           {event.location}
@@ -362,40 +286,40 @@ export const EventCard: React.FC<EventCardProps> = ({
         <div>{renderSchedule()}</div>
       </div>
 
-      {/* Kuota & Progress Bar */}
+      {/* Quota & Progress Bar */}
       <div className="mb-3">
         <div className="flex justify-between text-xs text-gray-600 mb-1.5">
           <span className="font-medium">
             {isLoadingSlots ? (
-              "Memuat kuota..."
+              <span className="animate-pulse">Memuat...</span>
             ) : (
               <>
-                Kuota Tersisa: {remainingQuota} dari {totalQuota}
+                Slot Tersisa: {availableSlots} dari {totalSlots}
               </>
             )}
           </span>
-          <span className="font-medium">{Math.round(quotaPercentage)}%</span>
+          <span className="font-medium">{Math.round(bookedPercentage)}%</span>
         </div>
         <div className="w-full bg-gray-200 rounded-full h-2">
           <div
-            className={`h-2 rounded-full ${
-              quotaPercentage >= 80
+            className={`h-2 rounded-full transition-all duration-300 ${
+              bookedPercentage >= 80
                 ? "bg-red-500"
-                : quotaPercentage >= 50
-                ? "bg-yellow-500"
-                : "bg-green-500"
+                : bookedPercentage >= 50
+                  ? "bg-yellow-500"
+                  : "bg-green-500"
             }`}
-            style={{ width: `${Math.min(quotaPercentage, 100)}%` }}
+            style={{ width: `${Math.min(bookedPercentage, 100)}%` }}
           ></div>
         </div>
         {!isLoadingSlots && (
           <div className="text-xs text-gray-500 mt-1">
-            {bookedSlots} slot terbooked • {numberOfDays} hari tersedia
+            {bookedSlots} slot sudah dibooked • {numberOfDays} hari tersedia
           </div>
         )}
       </div>
 
-      {/* Benefit */}
+      {/* Benefits */}
       {event.benefits && event.benefits.length > 0 && (
         <div className="mb-4">
           <h4 className="text-sm font-medium text-gray-700 mb-2">Benefit:</h4>
@@ -415,15 +339,15 @@ export const EventCard: React.FC<EventCardProps> = ({
         </div>
       )}
 
-      {/* Buttons */}
+      {/* Action Buttons */}
       <div className="mt-auto pt-3 space-y-2">
         {onViewDetails && (
           <Button
             onClick={() => onViewDetails(event)}
-            variant="primary"
+            variant="secondary"
             fullWidth
           >
-            Lihat Detail & Partisipan
+            Lihat Detail
           </Button>
         )}
 

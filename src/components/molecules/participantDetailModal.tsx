@@ -1,6 +1,21 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 // src/components/molecules/ParticipantDetailModal.tsx
 import React from "react";
-import { X, User, Mail, Phone, MapPin, Info, Calendar } from "lucide-react";
+import {
+  X,
+  User,
+  Mail,
+  Phone,
+  MapPin,
+  Info,
+  Calendar,
+  Clock,
+} from "lucide-react";
+
+interface SelectedDateShift {
+  date: string;
+  shiftIndex: number;
+}
 
 interface Participant {
   _id?: string;
@@ -11,7 +26,8 @@ interface Participant {
   domisili?: string;
   source?: string;
   reason?: string;
-  selectedDates?: string[];
+  selectedDates?: string[]; // Legacy
+  selectedDateShifts?: SelectedDateShift[]; // New with shifts
   registeredAt?: string;
 }
 
@@ -19,12 +35,14 @@ interface ParticipantDetailModalProps {
   isOpen: boolean;
   onClose: () => void;
   participant: Participant | null;
+  eventSchedule?: any; // For getting shift times
 }
 
 export const ParticipantDetailModal: React.FC<ParticipantDetailModalProps> = ({
   isOpen,
   onClose,
   participant,
+  eventSchedule,
 }) => {
   if (!isOpen || !participant) return null;
 
@@ -46,6 +64,28 @@ export const ParticipantDetailModal: React.FC<ParticipantDetailModalProps> = ({
       minute: "2-digit",
     });
   };
+
+  const getShiftTime = (date: string, shiftIndex: number) => {
+    if (!eventSchedule) return "";
+
+    if (eventSchedule.type === "selected") {
+      const session = eventSchedule.schedule?.find((s: any) => s.date === date);
+      if (session && session.shifts[shiftIndex]) {
+        const shift = session.shifts[shiftIndex];
+        return `${shift.startTime} - ${shift.endTime}`;
+      }
+    } else if (eventSchedule.type === "range") {
+      if (eventSchedule.shifts && eventSchedule.shifts[shiftIndex]) {
+        const shift = eventSchedule.shifts[shiftIndex];
+        return `${shift.startTime} - ${shift.endTime}`;
+      }
+    }
+    return "";
+  };
+
+  // Check if using new shift format
+  const usingShifts =
+    participant.selectedDateShifts && participant.selectedDateShifts.length > 0;
 
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
@@ -156,17 +196,48 @@ export const ParticipantDetailModal: React.FC<ParticipantDetailModalProps> = ({
               </p>
             </div>
 
-            {/* Tanggal Kehadiran */}
+            {/* Jadwal Kehadiran dengan Shift */}
             <div className="flex items-start gap-3 p-4 bg-gray-50 rounded-lg">
               <div className="shrink-0 bg-teal-100 p-2 rounded-lg">
                 <Calendar className="w-5 h-5 text-teal-600" />
               </div>
               <div className="flex-1">
                 <label className="block text-xs font-medium text-gray-500 mb-2">
-                  Tanggal Kehadiran Terpilih
+                  Jadwal Kehadiran Terpilih
                 </label>
-                {participant.selectedDates &&
-                participant.selectedDates.length > 0 ? (
+                {usingShifts ? (
+                  // New format with shifts
+                  <div className="space-y-2">
+                    {participant.selectedDateShifts!.map((selection, index) => {
+                      const shiftTime = getShiftTime(
+                        selection.date,
+                        selection.shiftIndex
+                      );
+                      return (
+                        <div
+                          key={index}
+                          className="bg-white px-3 py-2 rounded border border-gray-200"
+                        >
+                          <div className="flex items-center justify-between">
+                            <p className="text-sm text-gray-800 font-medium">
+                              {formatDate(selection.date)}
+                            </p>
+                            {shiftTime && (
+                              <div className="flex items-center gap-1 text-green-600">
+                                <Clock className="w-3 h-3" />
+                                <span className="text-xs font-medium">
+                                  {shiftTime}
+                                </span>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : participant.selectedDates &&
+                  participant.selectedDates.length > 0 ? (
+                  // Legacy format without shifts
                   <div className="space-y-1">
                     {participant.selectedDates.map((date, index) => (
                       <div

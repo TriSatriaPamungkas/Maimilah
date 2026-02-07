@@ -2,7 +2,6 @@
 import HeroSection from "./heroSection";
 import Introduction from "./introduction";
 import EventHighlight from "./eventHighlight";
-import MerchHighlight from "./MerchHighlight";
 import CTASection from "./ctaSection";
 import Navbar from "../../organism/navbar";
 import Footer from "./footerSection";
@@ -14,7 +13,7 @@ const LandingPage = () => {
       <HeroSection />
       <Introduction />
       <EventHighlight />
-      <MerchHighlight />
+
       <CTASection />
       <Footer />
     </main>

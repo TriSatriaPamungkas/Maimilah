@@ -3,30 +3,17 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useSession, signOut } from "next-auth/react";
-import { useRouter } from "next/navigation";
 import {
   Home,
   Calendar,
-  ShoppingBag,
   Users,
   LogOut,
-  MessageCircle,
-  Send,
-  Command,
-  MessageCircleCodeIcon,
-  SendIcon,
-  LucideSend,
-  MessageCircleReply,
-  MessageSquareReplyIcon,
-  MessageSquareDashed,
-  MessageSquarePlus,
   MessageSquareHeart,
 } from "lucide-react";
 import Image from "next/image";
 
 const AdminSidebar = () => {
   const pathname = usePathname();
-  const router = useRouter();
   const { data: session } = useSession();
 
   const menuItems = [
@@ -36,11 +23,7 @@ const AdminSidebar = () => {
       href: "/admin/dashboard/events",
       icon: <Calendar size={18} />,
     },
-    {
-      name: "Merchandise",
-      href: "/admin/dashboard/merch",
-      icon: <ShoppingBag size={18} />,
-    },
+
     {
       name: "Participants",
       href: "/admin/dashboard/participants",

@@ -4,9 +4,11 @@ import React, { useState, useEffect } from "react";
 import {
   EventSummary,
   EventSchedule,
+  TimeShift,
+  ScheduleItem,
   useEventStore,
 } from "@/src/store/useEventStore";
-import { CheckCircle } from "lucide-react"; // ✅ Import icon
+import { CheckCircle } from "lucide-react";
 
 interface EditEventModalProps {
   isOpen: boolean;
@@ -30,21 +32,19 @@ const EditEventModal: React.FC<EditEventModalProps> = ({
     benefits: [""],
   });
 
-  const [selectedDates, setSelectedDates] = useState<
-    { date: string; startTime: string; endTime: string }[]
-  >([{ date: "", startTime: "09:00", endTime: "17:00" }]);
+  const [selectedDates, setSelectedDates] = useState<ScheduleItem[]>([
+    { date: "", shifts: [{ startTime: "09:00", endTime: "17:00" }] },
+  ]);
 
   const [rangeData, setRangeData] = useState({
     startDate: "",
     endDate: "",
-    startTime: "09:00",
-    endTime: "17:00",
+    shifts: [{ startTime: "09:00", endTime: "17:00" }] as TimeShift[],
   });
 
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [showSuccess, setShowSuccess] = useState(false); // ✅ Toast state
+  const [showSuccess, setShowSuccess] = useState(false);
 
-  // Load data event saat modal dibuka
   useEffect(() => {
     if (isOpen && event) {
       setFormData({
@@ -63,8 +63,9 @@ const EditEventModal: React.FC<EditEventModalProps> = ({
         setRangeData({
           startDate: event.schedule.startDate,
           endDate: event.schedule.endDate,
-          startTime: event.schedule.startTime,
-          endTime: event.schedule.endTime,
+          shifts: event.schedule.shifts || [
+            { startTime: "09:00", endTime: "17:00" },
+          ],
         });
       }
     }
@@ -91,13 +92,13 @@ const EditEventModal: React.FC<EditEventModalProps> = ({
   const handleAddDate = () => {
     setSelectedDates([
       ...selectedDates,
-      { date: "", startTime: "09:00", endTime: "17:00" },
+      { date: "", shifts: [{ startTime: "09:00", endTime: "17:00" }] },
     ]);
   };
 
-  const handleDateChange = (index: number, field: string, value: string) => {
+  const handleDateChange = (index: number, value: string) => {
     const newDates = [...selectedDates];
-    newDates[index] = { ...newDates[index], [field]: value };
+    newDates[index] = { ...newDates[index], date: value };
     setSelectedDates(newDates);
   };
 
@@ -105,10 +106,58 @@ const EditEventModal: React.FC<EditEventModalProps> = ({
     setSelectedDates(selectedDates.filter((_, i) => i !== index));
   };
 
+  const handleAddShift = (dateIndex: number) => {
+    const newDates = [...selectedDates];
+    newDates[dateIndex].shifts.push({ startTime: "09:00", endTime: "17:00" });
+    setSelectedDates(newDates);
+  };
+
+  const handleShiftChange = (
+    dateIndex: number,
+    shiftIndex: number,
+    field: "startTime" | "endTime",
+    value: string
+  ) => {
+    const newDates = [...selectedDates];
+    newDates[dateIndex].shifts[shiftIndex][field] = value;
+    setSelectedDates(newDates);
+  };
+
+  const handleRemoveShift = (dateIndex: number, shiftIndex: number) => {
+    const newDates = [...selectedDates];
+    newDates[dateIndex].shifts = newDates[dateIndex].shifts.filter(
+      (_, i) => i !== shiftIndex
+    );
+    setSelectedDates(newDates);
+  };
+
+  const handleAddRangeShift = () => {
+    setRangeData({
+      ...rangeData,
+      shifts: [...rangeData.shifts, { startTime: "09:00", endTime: "17:00" }],
+    });
+  };
+
+  const handleRangeShiftChange = (
+    index: number,
+    field: "startTime" | "endTime",
+    value: string
+  ) => {
+    const newShifts = [...rangeData.shifts];
+    newShifts[index][field] = value;
+    setRangeData({ ...rangeData, shifts: newShifts });
+  };
+
+  const handleRemoveRangeShift = (index: number) => {
+    setRangeData({
+      ...rangeData,
+      shifts: rangeData.shifts.filter((_, i) => i !== index),
+    });
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    // Prevent double submission
     if (isSubmitting) return;
     setIsSubmitting(true);
 
@@ -124,21 +173,37 @@ const EditEventModal: React.FC<EditEventModalProps> = ({
           return;
         }
 
+        // Validasi setiap tanggal harus punya minimal 1 shift
+        for (const date of filteredDates) {
+          if (!date.shifts || date.shifts.length === 0) {
+            alert("Setiap tanggal harus memiliki minimal 1 shift waktu");
+            setIsSubmitting(false);
+            return;
+          }
+        }
+
         schedule = {
           type: "selected" as const,
-          schedule: filteredDates.map((date) => ({
-            date: date.date,
-            startTime: date.startTime,
-            endTime: date.endTime,
-          })),
+          schedule: filteredDates,
         };
       } else {
+        if (!rangeData.startDate || !rangeData.endDate) {
+          alert("Tanggal mulai dan selesai harus diisi");
+          setIsSubmitting(false);
+          return;
+        }
+
+        if (rangeData.shifts.length === 0) {
+          alert("Minimal harus ada satu shift waktu");
+          setIsSubmitting(false);
+          return;
+        }
+
         schedule = {
           type: "range" as const,
           startDate: rangeData.startDate,
           endDate: rangeData.endDate,
-          startTime: rangeData.startTime,
-          endTime: rangeData.endTime,
+          shifts: rangeData.shifts,
         };
       }
 
@@ -151,7 +216,6 @@ const EditEventModal: React.FC<EditEventModalProps> = ({
         benefits: formData.benefits.filter((benefit) => benefit.trim() !== ""),
       };
 
-      // Get event ID - prioritas _id dari MongoDB
       const eventId = event._id || event.id;
 
       if (!eventId) {
@@ -160,15 +224,10 @@ const EditEventModal: React.FC<EditEventModalProps> = ({
         return;
       }
 
-      console.log("Updating event with ID:", eventId);
-      console.log("Update data:", updatedEvent);
-
       await updateEvent(eventId, updatedEvent);
 
-      // ✅ Show success toast instead of alert
       setShowSuccess(true);
 
-      // ✅ Close modal after 1.5 seconds
       setTimeout(() => {
         setShowSuccess(false);
         onClose();
@@ -184,7 +243,6 @@ const EditEventModal: React.FC<EditEventModalProps> = ({
 
   return (
     <>
-      {/* ✅ Success Toast */}
       {showSuccess && (
         <div className="fixed top-4 right-4 bg-green-500 text-white px-6 py-4 rounded-lg shadow-lg z-9999 animate-in slide-in-from-right-8 duration-300">
           <div className="flex items-center gap-3">
@@ -199,7 +257,6 @@ const EditEventModal: React.FC<EditEventModalProps> = ({
 
       <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
         <div className="bg-white rounded-xl w-full max-w-2xl max-h-[90vh] overflow-hidden shadow-2xl">
-          {/* Header */}
           <div className="bg-green-50 px-6 py-4 border-b border-green-100">
             <div className="flex justify-between items-center">
               <div>
@@ -230,10 +287,8 @@ const EditEventModal: React.FC<EditEventModalProps> = ({
             </div>
           </div>
 
-          {/* Form Content - Scrollable */}
           <div className="overflow-y-auto max-h-[calc(90vh-180px)] p-6">
             <form onSubmit={handleSubmit} className="space-y-5">
-              {/* Nama Event */}
               <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-2">
                   Nama Event <span className="text-red-500">*</span>
@@ -251,7 +306,6 @@ const EditEventModal: React.FC<EditEventModalProps> = ({
                 />
               </div>
 
-              {/* Deskripsi */}
               <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-2">
                   Deskripsi Event <span className="text-red-500">*</span>
@@ -269,7 +323,6 @@ const EditEventModal: React.FC<EditEventModalProps> = ({
                 />
               </div>
 
-              {/* Lokasi & Kuota */}
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-2">
@@ -305,18 +358,12 @@ const EditEventModal: React.FC<EditEventModalProps> = ({
                         quota: value === "" ? 1 : parseInt(value) || 1,
                       });
                     }}
-                    onBlur={(e) => {
-                      if (!e.target.value || parseInt(e.target.value) < 1) {
-                        setFormData({ ...formData, quota: 1 });
-                      }
-                    }}
                     className="w-full px-4 py-2.5 border border-gray-300 rounded-lg text-black focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all disabled:bg-gray-100"
                     placeholder="Max peserta"
                   />
                 </div>
               </div>
 
-              {/* Tipe Jadwal */}
               <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-3">
                   Tipe Jadwal
@@ -361,58 +408,102 @@ const EditEventModal: React.FC<EditEventModalProps> = ({
                 </div>
               </div>
 
-              {/* Schedule Fields */}
               {formData.scheduleType === "selected" ? (
                 <div className="bg-gray-50 p-4 rounded-lg">
                   <label className="block text-sm font-semibold text-gray-700 mb-3">
-                    Tanggal & Waktu Terpilih{" "}
+                    Tanggal & Waktu Shift{" "}
                     <span className="text-red-500">*</span>
                   </label>
-                  <div className="space-y-3">
-                    {selectedDates.map((date, index) => (
+                  <div className="space-y-4">
+                    {selectedDates.map((dateItem, dateIndex) => (
                       <div
-                        key={index}
-                        className="flex space-x-2 items-start bg-white p-3 rounded-lg border border-gray-200"
+                        key={dateIndex}
+                        className="bg-white p-4 rounded-lg border border-gray-200"
                       >
-                        <input
-                          type="date"
-                          required
-                          disabled={isSubmitting}
-                          value={date.date}
-                          onChange={(e) =>
-                            handleDateChange(index, "date", e.target.value)
-                          }
-                          className="flex-1 px-3 py-2 border border-gray-300 rounded-md text-black focus:outline-none focus:ring-2 focus:ring-green-500 disabled:bg-gray-100"
-                        />
-                        <input
-                          type="time"
-                          disabled={isSubmitting}
-                          value={date.startTime}
-                          onChange={(e) =>
-                            handleDateChange(index, "startTime", e.target.value)
-                          }
-                          className="px-3 py-2 border border-gray-300 rounded-md text-black focus:outline-none focus:ring-2 focus:ring-green-500 disabled:bg-gray-100"
-                        />
-                        <span className="py-2 text-gray-500">—</span>
-                        <input
-                          type="time"
-                          disabled={isSubmitting}
-                          value={date.endTime}
-                          onChange={(e) =>
-                            handleDateChange(index, "endTime", e.target.value)
-                          }
-                          className="px-3 py-2 border border-gray-300 rounded-md text-black focus:outline-none focus:ring-2 focus:ring-green-500 disabled:bg-gray-100"
-                        />
-                        {selectedDates.length > 1 && (
+                        <div className="flex items-center gap-2 mb-3">
+                          <input
+                            type="date"
+                            required
+                            disabled={isSubmitting}
+                            value={dateItem.date}
+                            onChange={(e) =>
+                              handleDateChange(dateIndex, e.target.value)
+                            }
+                            className="flex-1 px-3 py-2 border border-gray-300 rounded-md text-black focus:outline-none focus:ring-2 focus:ring-green-500 disabled:bg-gray-100"
+                          />
+                          {selectedDates.length > 1 && (
+                            <button
+                              type="button"
+                              disabled={isSubmitting}
+                              onClick={() => handleRemoveDate(dateIndex)}
+                              className="px-3 py-2 text-red-500 hover:text-red-700 hover:bg-red-50 rounded-md transition-colors disabled:opacity-50"
+                            >
+                              ✕
+                            </button>
+                          )}
+                        </div>
+
+                        <div className="space-y-2 ml-4">
+                          <p className="text-xs font-medium text-gray-600 mb-2">
+                            Shift Waktu:
+                          </p>
+                          {dateItem.shifts.map((shift, shiftIndex) => (
+                            <div
+                              key={shiftIndex}
+                              className="flex items-center gap-2"
+                            >
+                              <input
+                                type="time"
+                                disabled={isSubmitting}
+                                value={shift.startTime}
+                                onChange={(e) =>
+                                  handleShiftChange(
+                                    dateIndex,
+                                    shiftIndex,
+                                    "startTime",
+                                    e.target.value
+                                  )
+                                }
+                                className="px-3 py-2 border border-gray-300 rounded-md text-black focus:outline-none focus:ring-2 focus:ring-green-500 disabled:bg-gray-100"
+                              />
+                              <span className="text-gray-500">—</span>
+                              <input
+                                type="time"
+                                disabled={isSubmitting}
+                                value={shift.endTime}
+                                onChange={(e) =>
+                                  handleShiftChange(
+                                    dateIndex,
+                                    shiftIndex,
+                                    "endTime",
+                                    e.target.value
+                                  )
+                                }
+                                className="px-3 py-2 border border-gray-300 rounded-md text-black focus:outline-none focus:ring-2 focus:ring-green-500 disabled:bg-gray-100"
+                              />
+                              {dateItem.shifts.length > 1 && (
+                                <button
+                                  type="button"
+                                  disabled={isSubmitting}
+                                  onClick={() =>
+                                    handleRemoveShift(dateIndex, shiftIndex)
+                                  }
+                                  className="px-2 py-1 text-red-500 hover:text-red-700 text-sm disabled:opacity-50"
+                                >
+                                  ✕
+                                </button>
+                              )}
+                            </div>
+                          ))}
                           <button
                             type="button"
                             disabled={isSubmitting}
-                            onClick={() => handleRemoveDate(index)}
-                            className="px-3 py-2 text-red-500 hover:text-red-700 hover:bg-red-50 rounded-md transition-colors disabled:opacity-50"
+                            onClick={() => handleAddShift(dateIndex)}
+                            className="text-green-600 hover:text-green-700 text-xs font-medium disabled:opacity-50"
                           >
-                            ✕
+                            + Tambah Shift
                           </button>
-                        )}
+                        </div>
                       </div>
                     ))}
                     <button
@@ -427,77 +518,107 @@ const EditEventModal: React.FC<EditEventModalProps> = ({
                   </div>
                 </div>
               ) : (
-                <div className="bg-gray-50 p-4 rounded-lg grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-2">
-                      Tanggal Mulai <span className="text-red-500">*</span>
-                    </label>
-                    <input
-                      type="date"
-                      required
-                      disabled={isSubmitting}
-                      value={rangeData.startDate}
-                      onChange={(e) =>
-                        setRangeData({
-                          ...rangeData,
-                          startDate: e.target.value,
-                        })
-                      }
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md text-black focus:outline-none focus:ring-2 focus:ring-green-500 disabled:bg-gray-100"
-                    />
+                <div className="bg-gray-50 p-4 rounded-lg space-y-4">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-2">
+                        Tanggal Mulai <span className="text-red-500">*</span>
+                      </label>
+                      <input
+                        type="date"
+                        required
+                        disabled={isSubmitting}
+                        value={rangeData.startDate}
+                        onChange={(e) =>
+                          setRangeData({
+                            ...rangeData,
+                            startDate: e.target.value,
+                          })
+                        }
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md text-black focus:outline-none focus:ring-2 focus:ring-green-500 disabled:bg-gray-100"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-2">
+                        Tanggal Selesai <span className="text-red-500">*</span>
+                      </label>
+                      <input
+                        type="date"
+                        required
+                        disabled={isSubmitting}
+                        value={rangeData.endDate}
+                        onChange={(e) =>
+                          setRangeData({
+                            ...rangeData,
+                            endDate: e.target.value,
+                          })
+                        }
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md text-black focus:outline-none focus:ring-2 focus:ring-green-500 disabled:bg-gray-100"
+                      />
+                    </div>
                   </div>
-                  <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-2">
-                      Tanggal Selesai <span className="text-red-500">*</span>
-                    </label>
-                    <input
-                      type="date"
-                      required
-                      disabled={isSubmitting}
-                      value={rangeData.endDate}
-                      onChange={(e) =>
-                        setRangeData({ ...rangeData, endDate: e.target.value })
-                      }
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md text-black focus:outline-none focus:ring-2 focus:ring-green-500 disabled:bg-gray-100"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-2">
-                      Waktu Mulai <span className="text-red-500">*</span>
-                    </label>
-                    <input
-                      type="time"
-                      required
-                      disabled={isSubmitting}
-                      value={rangeData.startTime}
-                      onChange={(e) =>
-                        setRangeData({
-                          ...rangeData,
-                          startTime: e.target.value,
-                        })
-                      }
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md text-black focus:outline-none focus:ring-2 focus:ring-green-500 disabled:bg-gray-100"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-2">
-                      Waktu Selesai <span className="text-red-500">*</span>
-                    </label>
-                    <input
-                      type="time"
-                      required
-                      disabled={isSubmitting}
-                      value={rangeData.endTime}
-                      onChange={(e) =>
-                        setRangeData({ ...rangeData, endTime: e.target.value })
-                      }
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md text-black focus:outline-none focus:ring-2 focus:ring-green-500 disabled:bg-gray-100"
-                    />
+
+                  <div className="bg-white p-4 rounded-lg border border-gray-200">
+                    <p className="text-sm font-semibold text-gray-700 mb-3">
+                      Shift Waktu (berlaku untuk semua hari)
+                    </p>
+                    <div className="space-y-2">
+                      {rangeData.shifts.map((shift, index) => (
+                        <div key={index} className="flex items-center gap-2">
+                          <input
+                            type="time"
+                            required
+                            disabled={isSubmitting}
+                            value={shift.startTime}
+                            onChange={(e) =>
+                              handleRangeShiftChange(
+                                index,
+                                "startTime",
+                                e.target.value
+                              )
+                            }
+                            className="px-3 py-2 border border-gray-300 rounded-md text-black focus:outline-none focus:ring-2 focus:ring-green-500 disabled:bg-gray-100"
+                          />
+                          <span className="text-gray-500">—</span>
+                          <input
+                            type="time"
+                            required
+                            disabled={isSubmitting}
+                            value={shift.endTime}
+                            onChange={(e) =>
+                              handleRangeShiftChange(
+                                index,
+                                "endTime",
+                                e.target.value
+                              )
+                            }
+                            className="px-3 py-2 border border-gray-300 rounded-md text-black focus:outline-none focus:ring-2 focus:ring-green-500 disabled:bg-gray-100"
+                          />
+                          {rangeData.shifts.length > 1 && (
+                            <button
+                              type="button"
+                              disabled={isSubmitting}
+                              onClick={() => handleRemoveRangeShift(index)}
+                              className="px-2 py-1 text-red-500 hover:text-red-700 disabled:opacity-50"
+                            >
+                              ✕
+                            </button>
+                          )}
+                        </div>
+                      ))}
+                      <button
+                        type="button"
+                        disabled={isSubmitting}
+                        onClick={handleAddRangeShift}
+                        className="text-green-600 hover:text-green-700 text-sm font-medium disabled:opacity-50"
+                      >
+                        + Tambah Shift
+                      </button>
+                    </div>
                   </div>
                 </div>
               )}
 
-              {/* Benefits */}
               <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-2">
                   Benefit Event <span className="text-red-500">*</span>
@@ -541,7 +662,6 @@ const EditEventModal: React.FC<EditEventModalProps> = ({
             </form>
           </div>
 
-          {/* Footer Actions */}
           <div className="border-t border-gray-200 bg-gray-50 px-6 py-4 flex justify-end space-x-3">
             <button
               type="button"

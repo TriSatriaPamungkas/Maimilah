@@ -3,7 +3,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import Registration from "@/src/models/registration";
 import { Event, connectDB } from "@/src/models/event";
-import { sendVolunteerConfirmation } from "@/src/lib/emailServices"; // ✅ Import email service
+import { sendVolunteerConfirmation } from "@/src/lib/emailServices";
 
 /**
  * ✅ GET /api/register?eventId=...
@@ -50,7 +50,7 @@ export async function GET(req: NextRequest) {
 
 /**
  * ✅ POST /api/register
- * Tambahkan peserta baru ke collection "registration" + Kirim Email
+ * Tambahkan peserta baru dengan support untuk shift selection
  */
 export async function POST(req: NextRequest) {
   try {
@@ -65,7 +65,8 @@ export async function POST(req: NextRequest) {
       domisili,
       source,
       reason,
-      selectedDates,
+      selectedDates, // Legacy
+      selectedDateShifts, // New with shifts
     } = body;
 
     console.log("📥 Registration request received:", {
@@ -73,29 +74,40 @@ export async function POST(req: NextRequest) {
       name,
       email,
       phone,
-      domisili,
-      source,
-      reason,
+      selectedDateShifts,
       selectedDates,
     });
 
-    // 🔍 Validasi input
-    if (!eventId || !name || !email) {
+    // Validasi input
+    if (!eventId || !name || !email || !phone) {
       return NextResponse.json(
-        { success: false, error: "eventId, name, dan email wajib diisi" },
+        {
+          success: false,
+          error: "eventId, name, email, dan phone wajib diisi",
+        },
         { status: 400 }
       );
     }
 
-    // ✅ Validasi phone
-    if (!phone) {
+    // Validasi phone format
+    if (phone.length < 10 || phone.length > 15) {
       return NextResponse.json(
-        { success: false, error: "Nomor telepon wajib diisi" },
+        { success: false, error: "Nomor telepon harus 10-15 digit" },
         { status: 400 }
       );
     }
 
-    // 🔍 Cek event valid
+    // Check if using new shift format or legacy
+    const usingShifts = selectedDateShifts && selectedDateShifts.length > 0;
+
+    if (!usingShifts && (!selectedDates || selectedDates.length === 0)) {
+      return NextResponse.json(
+        { success: false, error: "Minimal pilih satu tanggal/shift" },
+        { status: 400 }
+      );
+    }
+
+    // Cek event valid
     const event = await Event.findById(eventId);
     if (!event) {
       return NextResponse.json(
@@ -104,17 +116,65 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // 🔍 Cek apakah user sudah daftar
+    // Cek apakah user sudah daftar
     const existing = await Registration.findOne({ eventId, email });
     if (existing) {
       return NextResponse.json(
-        { success: false, error: "Peserta sudah terdaftar di event ini" },
+        { success: false, error: "Anda sudah terdaftar di event ini" },
         { status: 400 }
       );
     }
 
-    // 🔍 Cek kuota per tanggal yang dipilih
-    if (selectedDates && Array.isArray(selectedDates)) {
+    // Validasi kuota per shift
+    if (usingShifts) {
+      for (const selection of selectedDateShifts) {
+        const { date, shiftIndex } = selection;
+
+        // Find all registrations for this date and shift
+        const registrations = await Registration.find({
+          eventId,
+          selectedDateShifts: {
+            $elemMatch: { date, shiftIndex },
+          },
+        });
+
+        const bookedCount = registrations.length;
+
+        if (bookedCount >= event.quota) {
+          // Get shift info from event schedule
+          let shiftInfo = "";
+          if (event.schedule.type === "selected" && event.schedule.schedule) {
+            const session = event.schedule.schedule.find(
+              (s: any) => s.date === date
+            );
+            if (session && session.shifts[shiftIndex]) {
+              const shift = session.shifts[shiftIndex];
+              shiftInfo = `${shift.startTime} - ${shift.endTime}`;
+            }
+          } else {
+            if (event.schedule.shifts && event.schedule.shifts[shiftIndex]) {
+              const shift = event.schedule.shifts[shiftIndex];
+              shiftInfo = `${shift.startTime} - ${shift.endTime}`;
+            }
+          }
+
+          const formattedDate = new Date(date).toLocaleDateString("id-ID", {
+            day: "numeric",
+            month: "long",
+            year: "numeric",
+          });
+
+          return NextResponse.json(
+            {
+              success: false,
+              error: `Kuota untuk ${formattedDate} shift ${shiftInfo} sudah penuh`,
+            },
+            { status: 400 }
+          );
+        }
+      }
+    } else {
+      // Legacy: check quota per date (all shifts)
       for (const date of selectedDates) {
         const dateCount = await Registration.countDocuments({
           eventId,
@@ -138,7 +198,7 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // 🧾 Buat registrasi baru dengan phone field
+    // Buat registrasi baru
     const registration = await Registration.create({
       eventId,
       name,
@@ -147,7 +207,8 @@ export async function POST(req: NextRequest) {
       domisili,
       source,
       reason,
-      selectedDates,
+      selectedDates: usingShifts ? undefined : selectedDates,
+      selectedDateShifts: usingShifts ? selectedDateShifts : undefined,
       registeredAt: new Date(),
     });
 
@@ -156,27 +217,53 @@ export async function POST(req: NextRequest) {
       name: registration.name,
       email: registration.email,
       phone: registration.phone,
+      selectedDateShifts: registration.selectedDateShifts,
     });
 
-    // 🔄 Update list peserta di model Event
+    // Update list peserta di model Event
     event.participants = [...(event.participants || []), registration._id];
     await event.save();
 
-    // 📧 Kirim email konfirmasi
+    // Format shift details untuk email
+    const shiftDetails = selectedDateShifts.map((sel: any) => {
+      let startTime = "";
+      let endTime = "";
+
+      if (event.schedule.type === "selected" && event.schedule.schedule) {
+        const session = event.schedule.schedule.find(
+          (s: any) => s.date === sel.date
+        );
+        if (session && session.shifts[sel.shiftIndex]) {
+          startTime = session.shifts[sel.shiftIndex].startTime;
+          endTime = session.shifts[sel.shiftIndex].endTime;
+        }
+      } else {
+        if (event.schedule.shifts && event.schedule.shifts[sel.shiftIndex]) {
+          startTime = event.schedule.shifts[sel.shiftIndex].startTime;
+          endTime = event.schedule.shifts[sel.shiftIndex].endTime;
+        }
+      }
+
+      return {
+        date: sel.date,
+        startTime,
+        endTime,
+      };
+    });
+
+    // Kirim email konfirmasi - HAPUS selectedDates
     try {
       await sendVolunteerConfirmation({
         name: registration.name,
         email: registration.email,
         eventName: event.title,
         eventLocation: event.location,
-        selectedDates: registration.selectedDates,
+        selectedShifts: shiftDetails, // ✅ Hanya gunakan selectedShifts
       });
 
       console.log("✅ Confirmation email sent to:", registration.email);
     } catch (emailError: any) {
       console.error("❌ Email error:", emailError);
-      // Data sudah tersimpan, tapi email gagal
-      // Return success dengan warning
       return NextResponse.json(
         {
           success: true,
@@ -242,7 +329,7 @@ export async function DELETE(req: NextRequest) {
       name: deleted.name,
     });
 
-    // 🔄 Hapus ID peserta dari event
+    // Hapus ID peserta dari event
     await Event.findByIdAndUpdate(eventId, {
       $pull: { participants: deleted._id },
     });

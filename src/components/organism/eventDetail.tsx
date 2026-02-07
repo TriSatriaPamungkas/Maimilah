@@ -44,7 +44,6 @@ const EventDetail = () => {
         year: "numeric",
       })}`;
     } else {
-      // range type
       const startDate = new Date(schedule.startDate);
       const endDate = new Date(schedule.endDate);
 
@@ -68,16 +67,30 @@ const EventDetail = () => {
     }
   };
 
-  // Format time based on schedule type
+  // Format time based on schedule type with shifts
   const formatEventTime = () => {
     if (schedule.type === "selected") {
       if (schedule.schedule.length === 0) return "Waktu belum ditentukan";
 
       const firstSession = schedule.schedule[0];
-      return `${firstSession.startTime} - ${firstSession.endTime}`;
+      if (!firstSession.shifts || firstSession.shifts.length === 0) {
+        return "Shift belum ditentukan";
+      }
+
+      if (firstSession.shifts.length === 1) {
+        return `${firstSession.shifts[0].startTime} - ${firstSession.shifts[0].endTime}`;
+      }
+      return `${firstSession.shifts.length} shift per hari`;
     } else {
       // range type
-      return `${schedule.startTime} - ${schedule.endTime}`;
+      if (!schedule.shifts || schedule.shifts.length === 0) {
+        return "Shift belum ditentukan";
+      }
+
+      if (schedule.shifts.length === 1) {
+        return `${schedule.shifts[0].startTime} - ${schedule.shifts[0].endTime}`;
+      }
+      return `${schedule.shifts.length} shift per hari`;
     }
   };
 
@@ -94,9 +107,7 @@ const EventDetail = () => {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Hero */}
       <div className="relative w-full h-64 md:h-80 lg:h-96 bg-linear-to-t from-green-900 via-green-500 to-transparent flex items-end">
-        {/* Back Button - Hidden on mobile, visible on desktop */}
         <button
           onClick={handleBack}
           className="absolute top-10 left-6 hidden md:flex items-center gap-2 text-gray-700 bg-black/10 hover:bg-green-600/50 hover:text-white rounded-lg px-4 py-3 transition-all backdrop-blur-sm z-40 border border-white/20"
@@ -120,13 +131,11 @@ const EventDetail = () => {
         </div>
       </div>
 
-      {/* Content */}
       <div className="max-w-6xl mx-auto px-4 py-10">
-        {/* Mobile Back Button - Only visible on mobile */}
         <div className="md:hidden mb-6">
           <button
             onClick={handleBack}
-            className="flex items-center gap-2 text-green-600 hover:text-green-700 transition-colors p-3 rounded-lg hover:bg-green-500 border border-green-200 w-full justify-center "
+            className="flex items-center gap-2 text-green-600 hover:text-green-700 transition-colors p-3 rounded-lg hover:bg-green-500 border border-green-200 w-full justify-center"
           >
             <ArrowLeft size={20} />
             <span className="font-medium">Kembali ke Daftar Event</span>
@@ -134,9 +143,7 @@ const EventDetail = () => {
         </div>
 
         <section className="bg-white rounded-xl shadow-sm p-6 md:p-8 mb-10">
-          {/* Grid dua kolom dengan proporsi yang lebih seimbang */}
           <div className="grid md:grid-cols-4 gap-8">
-            {/* Kiri: Deskripsi - sekarang lebih kecil */}
             <div className="md:col-span-2">
               <h2 className="text-2xl font-semibold mb-6 text-green-700">
                 Tentang Event Ini
@@ -145,7 +152,6 @@ const EventDetail = () => {
                 {description}
               </p>
 
-              {/* Benefits section */}
               {selectedEvent.benefits && selectedEvent.benefits.length > 0 && (
                 <div>
                   <h3 className="text-xl font-semibold mb-3 text-green-700">
@@ -160,7 +166,6 @@ const EventDetail = () => {
               )}
             </div>
 
-            {/* Kanan: Info event - sekarang lebih lebar */}
             <div className="md:col-span-2 bg-gray-50 rounded-xl p-6 shadow-inner border border-gray-200 flex flex-col gap-6">
               <div className="flex flex-col gap-4 text-gray-700">
                 <h3 className="text-xl font-semibold text-green-700 mb-2">
@@ -194,31 +199,77 @@ const EventDetail = () => {
                   </div>
                 </div>
 
-                {/* Schedule details for selected type */}
+                {/* Schedule details with shifts */}
                 {schedule.type === "selected" &&
+                  schedule.schedule &&
                   schedule.schedule.length > 0 && (
                     <div className="mt-2 p-3 bg-white rounded-lg border border-gray-100">
                       <h4 className="font-semibold text-green-700 mb-3">
-                        Jadwal Sesi:
+                        Jadwal Detail:
                       </h4>
-                      <div className="space-y-3">
+                      <div className="space-y-4">
                         {schedule.schedule.map((session, index) => (
                           <div
                             key={index}
-                            className="flex justify-between items-center text-sm"
+                            className="border-b border-gray-100 last:border-0 pb-3 last:pb-0"
                           >
-                            <span className="font-medium">
+                            <div className="font-medium text-gray-900 mb-2">
                               {new Date(session.date).toLocaleDateString(
                                 "id-ID",
                                 {
-                                  weekday: "short",
+                                  weekday: "long",
                                   day: "numeric",
-                                  month: "short",
+                                  month: "long",
+                                  year: "numeric",
                                 }
                               )}
+                            </div>
+                            {session.shifts && session.shifts.length > 0 ? (
+                              <div className="space-y-1 ml-4">
+                                {session.shifts.map((shift, shiftIndex) => (
+                                  <div
+                                    key={shiftIndex}
+                                    className="flex items-center gap-2 text-sm text-gray-600"
+                                  >
+                                    <span className="bg-green-100 text-green-700 px-2 py-1 rounded text-xs font-medium">
+                                      Shift {shiftIndex + 1}
+                                    </span>
+                                    <span>
+                                      {shift.startTime} - {shift.endTime}
+                                    </span>
+                                  </div>
+                                ))}
+                              </div>
+                            ) : (
+                              <div className="ml-4 text-sm text-gray-500">
+                                Shift belum ditentukan
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                {/* Range schedule with shifts */}
+                {schedule.type === "range" &&
+                  schedule.shifts &&
+                  schedule.shifts.length > 0 && (
+                    <div className="mt-2 p-3 bg-white rounded-lg border border-gray-100">
+                      <h4 className="font-semibold text-green-700 mb-3">
+                        Shift Waktu (Setiap Hari):
+                      </h4>
+                      <div className="space-y-2">
+                        {schedule.shifts.map((shift, index) => (
+                          <div
+                            key={index}
+                            className="flex items-center gap-2 text-sm"
+                          >
+                            <span className="bg-green-100 text-green-700 px-2 py-1 rounded text-xs font-medium">
+                              Shift {index + 1}
                             </span>
                             <span className="text-gray-600">
-                              {session.startTime} - {session.endTime}
+                              {shift.startTime} - {shift.endTime}
                             </span>
                           </div>
                         ))}
@@ -229,7 +280,7 @@ const EventDetail = () => {
 
               <button
                 onClick={handleRegister}
-                className="w-full bg-green-600 text-white px-6 py-4  text-lg font-semibold hover:bg-green-700 transition-all shadow-md hover:shadow-lg mt-4"
+                className="w-full bg-green-600 text-white px-6 py-4 text-lg font-semibold hover:bg-green-700 transition-all shadow-md hover:shadow-lg mt-4 rounded-lg"
               >
                 Daftar Sekarang
               </button>

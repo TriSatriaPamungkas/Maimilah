@@ -30,6 +30,15 @@ const EventRegistrationPage = () => {
     router.back();
   };
 
+  // Calculate total quota across all dates and shifts
+  const getTotalQuota = () => {
+    return eventDates.reduce(
+      (total, date) =>
+        total + date.shifts.reduce((sum, shift) => sum + shift.quota, 0),
+      0,
+    );
+  };
+
   if (!event) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -38,6 +47,8 @@ const EventRegistrationPage = () => {
     );
   }
 
+  const totalQuota = getTotalQuota();
+
   return (
     <div className="min-h-screen bg-gray-50 py-4">
       <div className="max-w-4xl mx-auto mt-15 px-4">
@@ -45,7 +56,7 @@ const EventRegistrationPage = () => {
         <div className="flex items-center gap-4 mb-6">
           <button
             onClick={handleBack}
-            className="flex items-center gap-2 text-gray-600 hover:text-gray-900 transition-colors p-2  "
+            className="flex items-center gap-2 text-gray-600 hover:text-gray-900 transition-colors p-2"
           >
             <ArrowLeft size={20} />
             <span>Kembali ke Detail Event</span>
@@ -66,11 +77,11 @@ const EventRegistrationPage = () => {
               <Calendar size={16} className="text-green-600" />
               <span className="text-gray-700">
                 {event.schedule.type === "selected"
-                  ? `${event.schedule.schedule.length} Sesi`
+                  ? `${event.schedule.schedule.length} Tanggal`
                   : `${new Date(event.schedule.startDate).toLocaleDateString(
-                      "id-ID"
+                      "id-ID",
                     )} - ${new Date(event.schedule.endDate).toLocaleDateString(
-                      "id-ID"
+                      "id-ID",
                     )}`}
               </span>
             </div>
@@ -80,13 +91,13 @@ const EventRegistrationPage = () => {
               <span className="text-gray-700">{event.location}</span>
             </div>
 
-            {/* ✅ Kuota per tanggal */}
+            {/* ✅ Kuota split per shift */}
             <div className="flex items-center gap-2">
               <Users size={16} className="text-green-600" />
               {eventDates.length > 0 ? (
                 <div className="flex flex-col">
-                  <span className="text-sm text-gray-500">
-                    Total kuota: {event.quota * eventDates.length} peserta
+                  <span className="text-sm font-medium text-gray-700">
+                    Total: {totalQuota} slot
                   </span>
                 </div>
               ) : (

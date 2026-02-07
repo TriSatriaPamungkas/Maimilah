@@ -5,19 +5,24 @@ import mongoose, { Schema, model, models, Document, Types } from "mongoose";
 // =====================
 // 🔹 TypeScript Interfaces
 // =====================
-interface IScheduleItem {
-  date: string;
+interface ITimeShift {
   startTime: string;
   endTime: string;
 }
 
+interface IScheduleItem {
+  date: string;
+  shifts: ITimeShift[]; // Support multiple shifts per day
+}
+
 interface ISchedule {
+  startTime: string;
+  endTime: string;
   type: "selected" | "range";
   schedule?: IScheduleItem[];
   startDate?: string;
   endDate?: string;
-  startTime?: string;
-  endTime?: string;
+  shifts?: ITimeShift[]; // For range type with multiple shifts per day
 }
 
 interface IEvent {
@@ -41,11 +46,18 @@ interface IEventDocument extends IEvent, Document {
 // =====================
 // 🔹 Schema Definitions
 // =====================
+const timeShiftSchema = new Schema<ITimeShift>(
+  {
+    startTime: { type: String, required: true },
+    endTime: { type: String, required: true },
+  },
+  { _id: false }
+);
+
 const scheduleItemSchema = new Schema<IScheduleItem>(
   {
     date: { type: String, required: true },
-    startTime: { type: String, required: true },
-    endTime: { type: String, required: true },
+    shifts: { type: [timeShiftSchema], required: true, default: [] },
   },
   { _id: false }
 );
@@ -56,8 +68,7 @@ const scheduleSchema = new Schema<ISchedule>(
     schedule: [scheduleItemSchema],
     startDate: String,
     endDate: String,
-    startTime: String,
-    endTime: String,
+    shifts: [timeShiftSchema], // For range type
   },
   { _id: false }
 );
@@ -112,4 +123,4 @@ const Event =
   model<IEventDocument>("Event", eventSchema);
 
 export { Event, connectDB };
-export type { IEvent, IEventDocument, ISchedule, IScheduleItem };
+export type { IEvent, IEventDocument, ISchedule, IScheduleItem, ITimeShift };

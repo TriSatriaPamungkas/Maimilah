@@ -1,7 +1,13 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 // src/components/organisms/ParticipantsTable.tsx
 import React, { useState } from "react";
 import { ParticipantDetailModal } from "@/src/components/molecules/participantDetailModal";
 import { Eye, ChevronDown } from "lucide-react";
+
+interface SelectedDateShift {
+  date: string;
+  shiftIndex: number;
+}
 
 interface Participant {
   _id?: string;
@@ -12,7 +18,8 @@ interface Participant {
   domisili?: string;
   source?: string;
   reason?: string;
-  selectedDates?: string[];
+  selectedDates?: string[]; // Legacy
+  selectedDateShifts?: SelectedDateShift[]; // New with shifts
   registeredAt?: string;
 }
 
@@ -20,12 +27,16 @@ interface ParticipantsTableProps {
   participants: Participant[];
   isLoading?: boolean;
   selectedDate?: string;
+  selectedShift?: number | null; // New: selected shift index
+  eventSchedule?: any; // For getting shift times
 }
 
 export const ParticipantsTable: React.FC<ParticipantsTableProps> = ({
   participants,
   isLoading = false,
   selectedDate,
+  selectedShift = null,
+  eventSchedule,
 }) => {
   const [showAll, setShowAll] = useState(false);
   const [selectedParticipant, setSelectedParticipant] =
@@ -46,6 +57,26 @@ export const ParticipantsTable: React.FC<ParticipantsTableProps> = ({
       month: "long",
       year: "numeric",
     });
+  };
+
+  const getShiftTime = (shiftIndex: number) => {
+    if (!eventSchedule || !selectedDate) return "";
+
+    if (eventSchedule.type === "selected") {
+      const session = eventSchedule.schedule?.find(
+        (s: any) => s.date === selectedDate
+      );
+      if (session && session.shifts[shiftIndex]) {
+        const shift = session.shifts[shiftIndex];
+        return `${shift.startTime} - ${shift.endTime}`;
+      }
+    } else if (eventSchedule.type === "range") {
+      if (eventSchedule.shifts && eventSchedule.shifts[shiftIndex]) {
+        const shift = eventSchedule.shifts[shiftIndex];
+        return `${shift.startTime} - ${shift.endTime}`;
+      }
+    }
+    return "";
   };
 
   const handleViewDetail = (participant: Participant) => {
@@ -79,10 +110,19 @@ export const ParticipantsTable: React.FC<ParticipantsTableProps> = ({
   }
 
   if (participants.length === 0) {
+    const shiftTime = selectedShift !== null ? getShiftTime(selectedShift) : "";
     return (
       <div className="text-center py-12 text-gray-500">
         <p className="text-lg">Belum ada partisipan terdaftar</p>
-        <p className="text-sm">untuk tanggal {formatDate(selectedDate)}</p>
+        <p className="text-sm">
+          untuk tanggal {formatDate(selectedDate)}
+          {shiftTime && (
+            <span className="font-medium text-green-600">
+              {" "}
+              - Shift {shiftTime}
+            </span>
+          )}
+        </p>
       </div>
     );
   }
@@ -175,6 +215,7 @@ export const ParticipantsTable: React.FC<ParticipantsTableProps> = ({
         isOpen={isModalOpen}
         onClose={handleCloseModal}
         participant={selectedParticipant}
+        eventSchedule={eventSchedule}
       />
     </>
   );

@@ -80,6 +80,89 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // Validasi shifts untuk schedule type "selected"
+    if (schedule.type === "selected") {
+      if (!schedule.schedule || !Array.isArray(schedule.schedule)) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: "Schedule must be an array for 'selected' type",
+          },
+          { status: 400 }
+        );
+      }
+
+      // Validasi setiap schedule item harus punya shifts
+      for (const item of schedule.schedule) {
+        if (
+          !item.shifts ||
+          !Array.isArray(item.shifts) ||
+          item.shifts.length === 0
+        ) {
+          return NextResponse.json(
+            {
+              success: false,
+              error: "Each schedule item must have at least one shift",
+            },
+            { status: 400 }
+          );
+        }
+
+        // Validasi format shift
+        for (const shift of item.shifts) {
+          if (!shift.startTime || !shift.endTime) {
+            return NextResponse.json(
+              {
+                success: false,
+                error: "Each shift must have startTime and endTime",
+              },
+              { status: 400 }
+            );
+          }
+        }
+      }
+    }
+
+    // Validasi shifts untuk schedule type "range"
+    if (schedule.type === "range") {
+      if (!schedule.startDate || !schedule.endDate) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: "Range schedule must have startDate and endDate",
+          },
+          { status: 400 }
+        );
+      }
+
+      if (
+        !schedule.shifts ||
+        !Array.isArray(schedule.shifts) ||
+        schedule.shifts.length === 0
+      ) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: "Range schedule must have at least one shift",
+          },
+          { status: 400 }
+        );
+      }
+
+      // Validasi format shift
+      for (const shift of schedule.shifts) {
+        if (!shift.startTime || !shift.endTime) {
+          return NextResponse.json(
+            {
+              success: false,
+              error: "Each shift must have startTime and endTime",
+            },
+            { status: 400 }
+          );
+        }
+      }
+    }
+
     // Buat instance event baru
     const newEvent = new Event({
       title,
@@ -94,6 +177,14 @@ export async function POST(req: NextRequest) {
     await newEvent.save();
 
     console.log(`✅ [POST /api/event] New event created: ${newEvent.title}`);
+    console.log(`   Schedule type: ${schedule.type}`);
+    if (schedule.type === "selected") {
+      console.log(`   Dates: ${schedule.schedule.length} days with shifts`);
+    } else {
+      console.log(
+        `   Range: ${schedule.startDate} to ${schedule.endDate} with ${schedule.shifts.length} shifts per day`
+      );
+    }
 
     return NextResponse.json(
       {

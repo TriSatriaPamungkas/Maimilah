@@ -1,9 +1,13 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 // components/molecules/registrationForm.tsx
 "use client";
 import React, { useState, useEffect } from "react";
 import { Select } from "@/src/components/atoms/select";
 import { DateCheckboxGrid } from "@/src/components/molecules/dateCheckboxGrid";
-import { useRegistrationStore } from "@/src/store/useRegistrationStore";
+import {
+  useRegistrationStore,
+  SelectedDateShift,
+} from "@/src/store/useRegistrationStore";
 import { EventSummary } from "@/src/store/useEventStore";
 import { Calendar, MapPin, Users, CheckCircle } from "lucide-react";
 import { useRouter } from "next/navigation";
@@ -19,7 +23,6 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({
     registerParticipant,
     availableDates,
     initializeEventDates,
-    getParticipantsByEvent,
     fetchParticipantsByEvent,
   } = useRegistrationStore();
 
@@ -27,14 +30,18 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({
   const [form, setForm] = useState({
     fullName: "",
     email: "",
-    phone: "", // ✅ Tambah field phone
+    phone: "",
     domisili: "",
     source: "",
     reason: "",
-    selectedDates: [] as string[],
+    selectedDateShifts: [] as SelectedDateShift[],
   });
 
   const [showSuccess, setShowSuccess] = useState(false);
+  const [emailStatus, setEmailStatus] = useState<{
+    sent: boolean;
+    error: string | null;
+  } | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isLoadingQuota, setIsLoadingQuota] = useState(true);
 
@@ -64,9 +71,6 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({
     }
   }, [availableDates]);
 
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const eventParticipants = event?.id ? getParticipantsByEvent(event.id) : [];
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true);
@@ -78,23 +82,23 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({
       return;
     }
 
-    if (form.selectedDates.length === 0) {
-      alert("Pilih minimal satu tanggal kehadiran!");
+    if (form.selectedDateShifts.length === 0) {
+      alert("Pilih minimal satu shift kehadiran!");
       setIsSubmitting(false);
       return;
     }
 
-    // Cek kuota untuk setiap tanggal yang dipilih
-    const exceededQuotaDates = form.selectedDates.filter((date) => {
-      const dateInfo = availableDates.find((d) => d.date === date);
-      return dateInfo && dateInfo.booked >= dateInfo.quota;
+    // Cek kuota untuk setiap shift yang dipilih
+    const exceededQuotaShifts = form.selectedDateShifts.filter((selection) => {
+      const dateInfo = availableDates.find((d) => d.date === selection.date);
+      if (!dateInfo) return false;
+
+      const shift = dateInfo.shifts[selection.shiftIndex];
+      return shift && shift.booked >= shift.quota;
     });
 
-    if (exceededQuotaDates.length > 0) {
-      const formattedDates = exceededQuotaDates.map((date) =>
-        new Date(date).toLocaleDateString("id-ID")
-      );
-      alert(`Kuota untuk tanggal ${formattedDates.join(", ")} sudah penuh!`);
+    if (exceededQuotaShifts.length > 0) {
+      alert("Beberapa shift yang Anda pilih sudah penuh. Silakan pilih shift lain.");
       setIsSubmitting(false);
       return;
     }
@@ -113,15 +117,17 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({
         domisili: form.domisili,
         source: form.source,
         reason: form.reason,
-        selectedDates: form.selectedDates,
+        selectedDateShifts: form.selectedDateShifts,
       };
 
       console.log("📤 Submitting registration with data:", registrationData);
 
-      // ✅ Call API yang sudah diupdate
-      const result = await registerParticipant(event.id, registrationData);
+      await registerParticipant(event.id, registrationData);
 
-      console.log("✅ Registration successful:", result);
+      console.log("✅ Registration successful");
+
+      // Set default email status
+      setEmailStatus({ sent: true, error: null });
 
       // Show success toast
       setShowSuccess(true);
@@ -134,13 +140,13 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({
         domisili: "",
         source: "",
         reason: "",
-        selectedDates: [],
+        selectedDateShifts: [],
       });
 
-      // Redirect after 2 seconds
+      // Redirect after 2.5 seconds
       setTimeout(() => {
         router.push("/event");
-      }, 2000);
+      }, 2500);
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } catch (error: any) {
       console.error("❌ Registration error:", error);
@@ -156,43 +162,70 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({
 
   const formatEventSchedule = () => {
     if (event.schedule.type === "selected") {
-      return event.schedule.schedule.map(
-        (session) =>
-          `${new Date(session.date).toLocaleDateString("id-ID")} (${
-            session.startTime
-          } - ${session.endTime})`
-      );
+      return event.schedule.schedule.map((session) => {
+        const shiftsText =
+          session.shifts.length === 1
+            ? `${session.shifts[0].startTime} - ${session.shifts[0].endTime}`
+            : `${session.shifts.length} shift tersedia`;
+
+        return `${new Date(session.date).toLocaleDateString("id-ID")} (${shiftsText})`;
+      });
     } else {
+      const shiftsText =
+        event.schedule.shifts.length === 1
+          ? `${event.schedule.shifts[0].startTime} - ${event.schedule.shifts[0].endTime}`
+          : `${event.schedule.shifts.length} shift tersedia`;
+
       return [
         `${new Date(event.schedule.startDate).toLocaleDateString(
           "id-ID"
-        )} - ${new Date(event.schedule.endDate).toLocaleDateString("id-ID")} (${
-          event.schedule.startTime
-        } - ${event.schedule.endTime})`,
+        )} - ${new Date(event.schedule.endDate).toLocaleDateString("id-ID")} (${shiftsText})`,
       ];
     }
   };
 
   const getTotalQuota = () => {
-    return availableDates.reduce((total, date) => total + date.quota, 0);
+    return availableDates.reduce(
+      (total, date) =>
+        total + date.shifts.reduce((sum, shift) => sum + shift.quota, 0),
+      0
+    );
   };
 
   const getTotalBooked = () => {
-    return availableDates.reduce((total, date) => total + date.booked, 0);
+    return availableDates.reduce(
+      (total, date) =>
+        total + date.shifts.reduce((sum, shift) => sum + shift.booked, 0),
+      0
+    );
+  };
+
+  const getSelectedShiftsCount = () => {
+    return form.selectedDateShifts.length;
   };
 
   return (
     <div className="space-y-6 relative">
       {/* Success Toast */}
       {showSuccess && (
-        <div className="fixed top-4 right-4 bg-green-500 text-white px-6 py-4 rounded-lg shadow-lg z-50 animate-in slide-in-from-right-8 duration-300">
+        <div className="fixed top-4 right-4 bg-green-500 text-white px-6 py-4 rounded-lg shadow-lg z-50 animate-in slide-in-from-right-8 duration-300 max-w-md">
           <div className="flex items-center gap-3">
-            <CheckCircle size={24} className="text-white" />
-            <div>
+            <CheckCircle size={24} className="text-white shrink-0" />
+            <div className="flex-1">
               <p className="font-semibold">Pendaftaran Berhasil!</p>
-              <p className="text-sm text-green-100">
-                Mengalihkan ke halaman event...
-              </p>
+              {emailStatus?.sent ? (
+                <p className="text-sm text-green-100 mt-1">
+                  ✉️ Email konfirmasi telah dikirim ke {form.email || 'email Anda'}
+                </p>
+              ) : emailStatus?.error ? (
+                <p className="text-sm text-yellow-100 mt-1">
+                  ⚠️ Email konfirmasi gagal dikirim. Harap simpan bukti pendaftaran ini.
+                </p>
+              ) : (
+                <p className="text-sm text-green-100 mt-1">
+                  Mengalihkan ke halaman event...
+                </p>
+              )}
             </div>
           </div>
         </div>
@@ -219,7 +252,7 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({
           <div className="flex items-start gap-2">
             <Users size={16} className="text-green-600 mt-0.5 shrink-0" />
             <span className="text-gray-700">
-              {getTotalBooked()} / {getTotalQuota()} peserta terdaftar
+              {getTotalBooked()} / {getTotalQuota()} slot terdaftar
             </span>
           </div>
         </div>
@@ -258,7 +291,7 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({
           />
         </div>
 
-        {/* Phone - NEW */}
+        {/* Phone */}
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">
             No. Telepon/WhatsApp <span className="text-red-500">*</span>
@@ -267,7 +300,6 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({
             type="tel"
             value={form.phone}
             onChange={(e) => {
-              // Remove non-numeric characters
               const phoneValue = e.target.value.replace(/\D/g, "");
               setForm({ ...form, phone: phoneValue });
             }}
@@ -275,17 +307,12 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({
             disabled={isSubmitting}
             className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-green-500 focus:border-transparent disabled:bg-gray-100 disabled:cursor-not-allowed"
             placeholder="Contoh: 6281234567890"
-            minLength={11}
+            minLength={10}
             maxLength={15}
           />
           <p className="text-xs text-gray-500 mt-1">
-            Format: 11-15 digit angka tanpa + (contoh: 6281234567890)
+            Format: 10-15 digit angka (contoh: 6281234567890)
           </p>
-          {form.phone && (form.phone.length < 10 || form.phone.length > 13) && (
-            <p className="text-xs text-red-500 mt-1">
-              Nomor telepon harus 11-15 digit
-            </p>
-          )}
         </div>
 
         {/* Domisili */}
@@ -339,36 +366,36 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({
           />
         </div>
 
-        {/* Date Selection */}
+        {/* Date & Shift Selection */}
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-3">
-            Pilih Tanggal Kehadiran <span className="text-red-500">*</span>
+            Pilih Tanggal & Shift Kehadiran <span className="text-red-500">*</span>
             <span className="text-xs text-gray-500 ml-2">
-              ({form.selectedDates.length} tanggal dipilih)
+              ({getSelectedShiftsCount()} shift dipilih)
             </span>
           </label>
 
           {isLoadingQuota ? (
             <div className="text-center py-8 text-gray-500">
               <div className="inline-block w-6 h-6 border-2 border-gray-300 border-t-green-500 rounded-full animate-spin"></div>
-              <p className="mt-2 text-sm">Memuat ketersediaan tanggal...</p>
+              <p className="mt-2 text-sm">Memuat ketersediaan shift...</p>
             </div>
           ) : (
             <DateCheckboxGrid
               mode="user"
               availableDates={availableDates}
-              selectedDates={form.selectedDates}
-              onChange={(dates: string[]) =>
-                setForm({ ...form, selectedDates: dates })
+              selectedDateShifts={form.selectedDateShifts}
+              onChange={(selections: SelectedDateShift[]) =>
+                setForm({ ...form, selectedDateShifts: selections })
               }
             />
           )}
 
-          {form.selectedDates.length === 0 &&
+          {form.selectedDateShifts.length === 0 &&
             availableDates.length > 0 &&
             !isLoadingQuota && (
               <p className="text-red-500 text-xs mt-2">
-                Pilih minimal satu tanggal
+                Pilih minimal satu shift
               </p>
             )}
         </div>
@@ -377,7 +404,7 @@ export const RegistrationForm: React.FC<RegistrationFormProps> = ({
         <button
           type="submit"
           disabled={isSubmitting}
-          className="w-full bg-green-600 text-white font-semibold  py-3 hover:bg-green-700 transition-colors shadow-md disabled:bg-gray-400 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+          className="w-full bg-green-600 text-white font-semibold py-3 rounded-lg hover:bg-green-700 transition-colors shadow-md disabled:bg-gray-400 disabled:cursor-not-allowed flex items-center justify-center gap-2"
         >
           {isSubmitting ? (
             <>

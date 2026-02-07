@@ -6,21 +6,26 @@ import { persist } from "zustand/middleware";
 import { logActivity } from "@/src/store/useActivityStore";
 import { ActivityType } from "@/src/models/activity";
 
+export interface TimeShift {
+  startTime: string;
+  endTime: string;
+}
+
+export interface ScheduleItem {
+  date: string;
+  shifts: TimeShift[];
+}
+
 export type EventSchedule =
   | {
       type: "selected";
-      schedule: {
-        date: string;
-        startTime: string;
-        endTime: string;
-      }[];
+      schedule: ScheduleItem[];
     }
   | {
       type: "range";
       startDate: string;
       endDate: string;
-      startTime: string;
-      endTime: string;
+      shifts: TimeShift[];
     };
 
 export interface EventSummary {
@@ -29,307 +34,162 @@ export interface EventSummary {
   title: string;
   description: string;
   location: string;
-  quota: number; // quota per hari
+  quota: number;
   schedule: EventSchedule;
   benefits?: string[];
   participants?: string[];
 }
 
 interface EventStore {
+  [x: string]: any;
   events: EventSummary[];
+  bookedSlots: Record<string, number>;
   isLoading: boolean;
   error: string | null;
   selectedEvent: EventSummary | null;
 
   fetchEvents: () => Promise<void>;
+  fetchBookedSlots: (eventId: string) => Promise<void>; // Menghitung okupansi riil
   addEvent: (event: EventSummary) => Promise<void>;
   updateEvent: (id: string, event: Partial<EventSummary>) => Promise<void>;
   deleteEvent: (id: string) => Promise<void>;
 
   getEventById: (id: string) => EventSummary | undefined;
+  getEventBookedCount: (eventId: string) => number; // Menggantikan getParticipantsCount
   selectEvent: (event: EventSummary) => void;
   clearSelectedEvent: () => void;
-
-  addParticipant: (eventId: string, participantId: string) => Promise<void>;
-  removeParticipant: (eventId: string, participantId: string) => Promise<void>;
-  getParticipantsCount: (eventId: string) => number;
 }
 
-// fallback data
 const FALLBACK_EVENTS: EventSummary[] = [];
-
-// 🔹 Helper buat generate tanggal range (buat mode "range")
-function generateDateRange(start: string, end: string) {
-  const dates: string[] = [];
-  const current = new Date(start);
-  const endDate = new Date(end);
-
-  while (current <= endDate) {
-    dates.push(current.toISOString().split("T")[0]);
-    current.setDate(current.getDate() + 1);
-  }
-  return dates;
-}
 
 export const useEventStore = create<EventStore>()(
   persist(
     (set, get) => ({
       events: [],
+      bookedSlots: {}, // State baru untuk tracking okupansi
       isLoading: false,
       error: null,
       selectedEvent: null,
 
-      // 🔹 Fetch
       fetchEvents: async () => {
         set({ isLoading: true, error: null });
         try {
           const res = await fetch("/api/event");
           if (!res.ok) {
-            console.warn(`API returned ${res.status}, using fallback data`);
             set({ events: FALLBACK_EVENTS, isLoading: false });
             return;
           }
           const json = await res.json();
-          set({ events: json.data || [], isLoading: false });
+          const eventsData = json.data || [];
+          set({ events: eventsData, isLoading: false });
+
+          // ✅ Otomatis sinkronisasi slot untuk setiap event yang dimuat
+          eventsData.forEach((event: EventSummary) => {
+            get().fetchBookedSlots(event._id || event.id || "");
+          });
         } catch (err: any) {
-          console.error("Error fetchEvents:", err);
           set({ events: FALLBACK_EVENTS, isLoading: false });
         }
       },
 
-      // 🔹 Add event - FIXED with Activity Logging
+      // ✅ Fungsi Baru: Mengambil data registrasi riil dari API
+      fetchBookedSlots: async (eventId: string) => {
+        if (!eventId) return;
+        try {
+          const res = await fetch(`/api/register?eventId=${eventId}`);
+          const result = await res.json();
+          if (result.success && result.data) {
+            // Hitung total slot (1 pendaftar bisa ambil >1 hari/shift)
+            const totalUnits = result.data.reduce((sum: number, reg: any) => {
+              return sum + (reg.selectedDateShifts?.length || 0);
+            }, 0);
+
+            set((state) => ({
+              bookedSlots: { ...state.bookedSlots, [eventId]: totalUnits },
+            }));
+          }
+        } catch (err) {
+          console.error("❌ [STORE] Failed to fetch booked slots:", err);
+        }
+      },
+
       addEvent: async (event) => {
         try {
-          // Simpan event as-is tanpa modifikasi schedule type
-          // Backend atau logic lain yang akan handle quota per tanggal
-          const payload = { ...event };
-
           const res = await fetch("/api/event", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(payload),
+            body: JSON.stringify(event),
           });
 
-          if (!res.ok) throw new Error(`Failed to add event: ${res.status}`);
-
+          if (!res.ok) throw new Error(`Failed to add event`);
           const json = await res.json();
           const newEvent = json.data || json;
 
           set((state) => ({ events: [...state.events, newEvent] }));
 
-          // ✅ LOG ACTIVITY - Added debugging
-          console.log(
-            "📝 [EVENT] Attempting to log activity for new event:",
-            event.title
-          );
+          // Log Activity
           try {
             logActivity(
               ActivityType.EVENT_CREATED,
-              `Event baru dibuat: ${event.title}`,
+              `Event baru: ${event.title}`,
               {
                 eventId: newEvent._id || newEvent.id,
                 eventTitle: event.title,
-              }
-            );
-            console.log(
-              "✅ [EVENT] Activity logged successfully for:",
-              event.title
+              },
             );
           } catch (logErr) {
-            console.error("❌ [EVENT] Failed to log activity:", logErr);
+            console.error(logErr);
           }
         } catch (err: any) {
-          console.error("Error addEvent:", err);
           set({ error: err.message });
-          throw err; // Re-throw untuk error handling di modal
+          throw err;
         }
       },
 
-      // 🔹 Update event (bisa ubah kuota juga) with Activity Logging
       updateEvent: async (id, updatedEvent) => {
-        // Get current event for title
-        const currentEvent = get().events.find(
-          (e) => e._id === id || e.id === id
-        );
-
         try {
           const res = await fetch(`/api/event/${id}`, {
             method: "PUT",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify(updatedEvent),
           });
-          if (!res.ok) throw new Error(`Failed to update event: ${res.status}`);
-
+          if (!res.ok) throw new Error(`Failed to update event`);
           const json = await res.json();
           const updated = json.data || json;
 
           set((state) => ({
             events: state.events.map((e) =>
-              e._id === id || e.id === id ? { ...e, ...updated } : e
+              e._id === id || e.id === id ? { ...e, ...updated } : e,
             ),
           }));
-
-          // ✅ LOG ACTIVITY - Added debugging
-          const eventTitle =
-            updatedEvent.title || currentEvent?.title || "Unknown";
-          console.log(
-            "📝 [EVENT] Attempting to log activity for updated event:",
-            eventTitle
-          );
-          try {
-            logActivity(
-              ActivityType.EVENT_UPDATED,
-              `Event diperbarui: ${eventTitle}`,
-              {
-                eventId: id,
-                eventTitle: eventTitle,
-              }
-            );
-            console.log(
-              "✅ [EVENT] Activity logged successfully for:",
-              eventTitle
-            );
-          } catch (logErr) {
-            console.error("❌ [EVENT] Failed to log activity:", logErr);
-          }
         } catch (err: any) {
-          console.error("Error updateEvent:", err);
           set({ error: err.message });
           throw err;
         }
       },
 
-      // 🔹 Delete event with Activity Logging
       deleteEvent: async (id) => {
-        // Get event before deleting
-        const event = get().events.find((e) => e._id === id || e.id === id);
-
         try {
           const res = await fetch(`/api/event/${id}`, { method: "DELETE" });
-          if (!res.ok) throw new Error(`Failed to delete event: ${res.status}`);
-
+          if (!res.ok) throw new Error(`Failed to delete`);
           set((state) => ({
             events: state.events.filter((e) => e._id !== id && e.id !== id),
           }));
-
-          // ✅ LOG ACTIVITY - Added debugging
-          if (event) {
-            console.log(
-              "📝 [EVENT] Attempting to log activity for deleted event:",
-              event.title
-            );
-            try {
-              logActivity(
-                ActivityType.EVENT_DELETED,
-                `Event dihapus: ${event.title}`,
-                {
-                  eventId: id,
-                  eventTitle: event.title,
-                }
-              );
-              console.log(
-                "✅ [EVENT] Activity logged successfully for:",
-                event.title
-              );
-            } catch (logErr) {
-              console.error("❌ [EVENT] Failed to log activity:", logErr);
-            }
-          }
         } catch (err: any) {
-          console.error("Error deleteEvent:", err);
           set({ error: err.message });
           throw err;
         }
       },
 
-      // 🔹 Get event by ID
       getEventById: (id) =>
         get().events.find((e) => e._id === id || e.id === id),
 
-      // 🔹 Participant logic
-      addParticipant: async (eventId, participantId) => {
-        // Get event data untuk ambil nama event
-        const event = get().events.find(
-          (e) => e._id === eventId || e.id === eventId
-        );
+      // ✅ Selector Baru: Mengambil angka okupansi dari state terpusat
+      getEventBookedCount: (eventId) => get().bookedSlots[eventId] || 0,
 
-        try {
-          const res = await fetch(`/api/register`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ eventId, participantId }),
-          });
-
-          if (!res.ok) throw new Error(`Failed to add participant`);
-
-          set((state) => ({
-            events: state.events.map((event) =>
-              event._id === eventId || event.id === eventId
-                ? {
-                    ...event,
-                    participants: [
-                      ...(event.participants || []),
-                      participantId,
-                    ],
-                  }
-                : event
-            ),
-          }));
-
-          // ✅ LOG ACTIVITY - Added debugging
-          if (event) {
-            console.log(
-              "📝 [PARTICIPANT] Attempting to log activity for participant in:",
-              event.title
-            );
-            try {
-              logActivity(
-                ActivityType.PARTICIPANT_REGISTERED,
-                `Seseorang telah mendaftar di: ${event.title}`,
-                {
-                  eventId: eventId,
-                  eventTitle: event.title,
-                  participantName: participantId, // atau bisa diganti dengan nama participant jika ada
-                }
-              );
-              console.log("✅ [PARTICIPANT] Activity logged successfully");
-            } catch (logErr) {
-              console.error("❌ [PARTICIPANT] Failed to log activity:", logErr);
-            }
-          }
-        } catch (err: any) {
-          console.error("Error addParticipant:", err);
-          set({ error: err.message });
-          throw err;
-        }
-      },
-
-      removeParticipant: async (eventId, participantId) => {
-        set((state) => ({
-          events: state.events.map((event) =>
-            event._id === eventId || event.id === eventId
-              ? {
-                  ...event,
-                  participants: (event.participants || []).filter(
-                    (id) => id !== participantId
-                  ),
-                }
-              : event
-          ),
-        }));
-      },
-
-      getParticipantsCount: (eventId) => {
-        const event = get().events.find(
-          (e) => e._id === eventId || e.id === eventId
-        );
-        return event?.participants?.length || 0;
-      },
-
-      // 🔹 Select
       selectEvent: (event) => set({ selectedEvent: event }),
       clearSelectedEvent: () => set({ selectedEvent: null }),
     }),
-    { name: "event-storage" }
-  )
+    { name: "event-storage" },
+  ),
 );

@@ -1,157 +1,220 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-// app/api/event/[id]/route.ts
+// src/app/api/event/[id]/route.ts
 import { NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth/next";
-import { authOptions } from "@/app/api/auth/[...nextauth]/route";
-import { connectDB } from "@/src/lib/mongodb";
-import { Event } from "@/src/models/event";
+import { Event, connectDB } from "@/src/models/event";
 
-// ✅ GET - Fetch single event by ID (Public)
+// Definisikan tipe params sebagai Promise
+type RouteParams = {
+  params: Promise<{ id: string }>;
+};
+
+// ✅ GET /api/event/[id] - Get single event
 export async function GET(
-  req: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  _req: NextRequest,
+  { params }: RouteParams // Update tipe di sini
 ) {
   try {
-    const { id } = await params; // Support Next.js 15+ async params
     await connectDB();
 
-    const event = await Event.findById(id);
+    // 1. Await params sebelum menggunakannya
+    const { id } = await params;
+
+    const event = await Event.findById(id).lean();
 
     if (!event) {
       return NextResponse.json(
         {
           success: false,
-          error: "Event tidak ditemukan",
+          error: "Event not found",
         },
         { status: 404 }
       );
     }
 
-    return NextResponse.json({
-      success: true,
-      data: event,
-    });
+    return NextResponse.json(
+      {
+        success: true,
+        data: {
+          ...event,
+          id: event._id.toString(),
+          _id: event._id.toString(),
+        },
+      },
+      { status: 200 }
+    );
   } catch (error: any) {
-    console.error("Error fetching event:", error);
+    console.error("❌ [GET /api/event/[id]] Error:", error.message);
     return NextResponse.json(
       {
         success: false,
-        error: "Gagal mengambil data event",
-        message: error.message,
+        error: "Failed to fetch event",
+        message: error.message || "Unknown error",
       },
       { status: 500 }
     );
   }
 }
 
-// ✅ PUT - Update event (Protected - Admin only)
+// ✅ PUT /api/event/[id] - Update event
 export async function PUT(
   req: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: RouteParams // Update tipe di sini
 ) {
   try {
-    // Check authentication
-    const session = await getServerSession(authOptions);
-
-    if (!session) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: "Unauthorized - Please login",
-        },
-        { status: 401 }
-      );
-    }
-
-    // Optional: Check if user is admin
-    if (session.user.role !== "admin") {
-      return NextResponse.json(
-        {
-          success: false,
-          error: "Forbidden - Admin access required",
-        },
-        { status: 403 }
-      );
-    }
-
-    const { id } = await params; // Support Next.js 15+ async params
     await connectDB();
 
+    // 1. Await params sebelum menggunakannya
+    const { id } = await params;
+
     const body = await req.json();
+    const { title, description, location, quota, schedule, benefits } = body;
 
-    // Log untuk debugging
-    console.log("Updating event ID:", id);
-    console.log("Update data:", body);
+    // Validasi schedule jika ada perubahan (kode validasi sama seperti sebelumnya)
+    if (schedule) {
+      if (!schedule.type) {
+        return NextResponse.json(
+          { success: false, error: "Schedule type is required" },
+          { status: 400 }
+        );
+      }
 
-    const updatedEvent = await Event.findByIdAndUpdate(id, body, {
-      new: true, // Return updated document
-      runValidators: true, // Run mongoose validators
-    });
+      if (schedule.type === "selected") {
+        if (!schedule.schedule || !Array.isArray(schedule.schedule)) {
+          return NextResponse.json(
+            {
+              success: false,
+              error: "Schedule must be an array for 'selected' type",
+            },
+            { status: 400 }
+          );
+        }
+        for (const item of schedule.schedule) {
+          if (
+            !item.shifts ||
+            !Array.isArray(item.shifts) ||
+            item.shifts.length === 0
+          ) {
+            return NextResponse.json(
+              {
+                success: false,
+                error: "Each schedule item must have at least one shift",
+              },
+              { status: 400 }
+            );
+          }
+          for (const shift of item.shifts) {
+            if (!shift.startTime || !shift.endTime) {
+              return NextResponse.json(
+                {
+                  success: false,
+                  error: "Each shift must have startTime and endTime",
+                },
+                { status: 400 }
+              );
+            }
+          }
+        }
+      }
+
+      if (schedule.type === "range") {
+        if (!schedule.startDate || !schedule.endDate) {
+          return NextResponse.json(
+            {
+              success: false,
+              error: "Range schedule must have startDate and endDate",
+            },
+            { status: 400 }
+          );
+        }
+        if (
+          !schedule.shifts ||
+          !Array.isArray(schedule.shifts) ||
+          schedule.shifts.length === 0
+        ) {
+          return NextResponse.json(
+            {
+              success: false,
+              error: "Range schedule must have at least one shift",
+            },
+            { status: 400 }
+          );
+        }
+        for (const shift of schedule.shifts) {
+          if (!shift.startTime || !shift.endTime) {
+            return NextResponse.json(
+              {
+                success: false,
+                error: "Each shift must have startTime and endTime",
+              },
+              { status: 400 }
+            );
+          }
+        }
+      }
+    }
+
+    // Update event menggunakan 'id' yang sudah di-await
+    const updatedEvent = await Event.findByIdAndUpdate(
+      id,
+      {
+        $set: {
+          ...(title && { title }),
+          ...(description && { description }),
+          ...(location && { location }),
+          ...(quota && { quota }),
+          ...(schedule && { schedule }),
+          ...(benefits && { benefits }),
+        },
+      },
+      { new: true, runValidators: true }
+    );
 
     if (!updatedEvent) {
       return NextResponse.json(
-        {
-          success: false,
-          error: "Event tidak ditemukan",
-        },
+        { success: false, error: "Event not found" },
         { status: 404 }
       );
     }
 
-    console.log("Event updated successfully:", updatedEvent._id);
+    console.log(
+      `✅ [PUT /api/event/[id]] Event updated: ${updatedEvent.title}`
+    );
 
-    return NextResponse.json({
-      success: true,
-      data: updatedEvent,
-      message: "Event berhasil diupdate",
-    });
+    return NextResponse.json(
+      {
+        success: true,
+        message: "Event updated successfully",
+        data: {
+          ...updatedEvent.toJSON(),
+          id: updatedEvent._id.toString(),
+          _id: updatedEvent._id.toString(),
+        },
+      },
+      { status: 200 }
+    );
   } catch (error: any) {
-    console.error("Error updating event:", error);
+    console.error("❌ [PUT /api/event/[id]] Error:", error.message);
     return NextResponse.json(
       {
         success: false,
-        error: "Gagal mengupdate event",
-        message: error.message,
+        error: "Failed to update event",
+        message: error.message || "Unknown error",
       },
       { status: 500 }
     );
   }
 }
 
-// ✅ DELETE - Hapus event (Protected - Admin only)
+// ✅ DELETE /api/event/[id] - Delete event
 export async function DELETE(
-  req: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  _req: NextRequest,
+  { params }: RouteParams // Update tipe di sini
 ) {
   try {
-    // Check authentication
-    const session = await getServerSession(authOptions);
-
-    if (!session) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: "Unauthorized - Please login",
-        },
-        { status: 401 }
-      );
-    }
-
-    // Optional: Check if user is admin
-    if (session.user.role !== "admin") {
-      return NextResponse.json(
-        {
-          success: false,
-          error: "Forbidden - Admin access required",
-        },
-        { status: 403 }
-      );
-    }
-
-    const { id } = await params; // Support Next.js 15+ async params
     await connectDB();
 
-    console.log("Deleting event ID:", id);
+    // 1. Await params sebelum menggunakannya (Ini yang menyebabkan error sebelumnya)
+    const { id } = await params;
 
     const deletedEvent = await Event.findByIdAndDelete(id);
 
@@ -159,26 +222,33 @@ export async function DELETE(
       return NextResponse.json(
         {
           success: false,
-          error: "Event tidak ditemukan",
+          error: "Event not found",
         },
         { status: 404 }
       );
     }
 
-    console.log("Event deleted successfully:", deletedEvent._id);
+    console.log(
+      `✅ [DELETE /api/event/[id]] Event deleted: ${deletedEvent.title}`
+    );
 
-    return NextResponse.json({
-      success: true,
-      message: "Event berhasil dihapus",
-      data: deletedEvent,
-    });
+    return NextResponse.json(
+      {
+        success: true,
+        message: "Event deleted successfully",
+        data: {
+          id: deletedEvent._id.toString(),
+        },
+      },
+      { status: 200 }
+    );
   } catch (error: any) {
-    console.error("Error deleting event:", error);
+    console.error("❌ [DELETE /api/event/[id]] Error:", error.message);
     return NextResponse.json(
       {
         success: false,
-        error: "Gagal menghapus event",
-        message: error.message,
+        error: "Failed to delete event",
+        message: error.message || "Unknown error",
       },
       { status: 500 }
     );

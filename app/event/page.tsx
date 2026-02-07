@@ -24,8 +24,8 @@ const useUIStore = create<UIState>()(
       setSearchQuery: (q) => set({ searchQuery: q }),
       setFilter: (f) => set({ filter: f }),
     }),
-    { name: "event-ui-storage" }
-  )
+    { name: "event-ui-storage" },
+  ),
 );
 
 export default function EventPage() {
@@ -38,15 +38,37 @@ export default function EventPage() {
     fetchEvents();
   }, [fetchEvents]);
 
+  // 🔄 Auto-refresh setiap 30 detik untuk update slot real-time
+  useEffect(() => {
+    const interval = setInterval(() => {
+      fetchEvents();
+    }, 30000); // 30 seconds
+
+    return () => clearInterval(interval);
+  }, [fetchEvents]);
+
   // 🔍 Helper: Get event end date
   const getEventEndDate = (event: EventSummary): Date => {
     if (event.schedule.type === "range") {
-      return new Date(event.schedule.endDate);
-    } else {
+      return new Date(event.schedule.endDate!);
+    } else if (event.schedule.type === "selected") {
       const lastSchedule =
-        event.schedule.schedule[event.schedule.schedule.length - 1];
+        event.schedule.schedule![event.schedule.schedule!.length - 1];
       return new Date(lastSchedule.date);
     }
+    // Fallback
+    return new Date();
+  };
+
+  // 🔍 Helper: Get event start date
+  const getEventStartDate = (event: EventSummary): Date => {
+    if (event.schedule.type === "range") {
+      return new Date(event.schedule.startDate!);
+    } else if (event.schedule.type === "selected") {
+      const firstSchedule = event.schedule.schedule![0];
+      return new Date(firstSchedule.date);
+    }
+    return new Date();
   };
 
   // 🧩 Filter & Search Logic
@@ -75,9 +97,17 @@ export default function EventPage() {
         (event) =>
           event.title.toLowerCase().includes(q) ||
           event.description.toLowerCase().includes(q) ||
-          event.location.toLowerCase().includes(q)
+          event.location.toLowerCase().includes(q) ||
+          event.benefits?.some((b) => b.toLowerCase().includes(q)),
       );
     }
+
+    // Sort by start date (newest first)
+    filtered.sort((a, b) => {
+      const dateA = getEventStartDate(a);
+      const dateB = getEventStartDate(b);
+      return dateB.getTime() - dateA.getTime();
+    });
 
     return filtered;
   }, [events, filter, searchQuery]);
@@ -86,7 +116,7 @@ export default function EventPage() {
     router.push(`/event/${id}`);
   };
 
-  // Stats
+  // Stats - Calculate with proper type handling
   const totalEvents = events.length;
   const uniqueLocations = new Set(events.map((e) => e.location)).size;
   const now = new Date();
@@ -96,12 +126,12 @@ export default function EventPage() {
     return endDate >= now && !isFull;
   }).length;
 
-  if (isLoading) {
+  if (isLoading && events.length === 0) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-green-50 to-green-100">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-green-600 mx-auto mb-4"></div>
-          <p className="text-gray-600">Memuat event...</p>
+          <p className="text-gray-600 font-medium">Memuat event...</p>
         </div>
       </div>
     );
@@ -109,13 +139,16 @@ export default function EventPage() {
 
   if (error) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center">
-          <div className="text-red-600 text-xl mb-4">⚠️ Error</div>
-          <p className="text-gray-600">{error}</p>
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-red-50 to-red-100">
+        <div className="text-center max-w-md mx-auto px-4">
+          <div className="text-red-600 text-5xl mb-4">⚠️</div>
+          <h2 className="text-2xl font-bold text-gray-800 mb-2">
+            Oops! Terjadi Kesalahan
+          </h2>
+          <p className="text-gray-600 mb-6">{error}</p>
           <button
             onClick={() => fetchEvents()}
-            className="mt-4 px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
+            className="px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors font-medium shadow-lg"
           >
             Coba Lagi
           </button>
@@ -129,14 +162,14 @@ export default function EventPage() {
       {/* Fixed Home Button */}
       <button
         onClick={() => router.push("/")}
-        className="absolute top-4 left-4 z-50 bg-white/10  hover:bg-white/20 text-white flex p-3 rounded-md shadow-lg transition-all "
+        className="fixed top-4 left-4 z-50 bg-white/90 backdrop-blur-sm hover:bg-white text-green-600 flex items-center gap-2 px-4 py-3 rounded-lg shadow-lg transition-all hover:shadow-xl"
       >
-        <ArrowLeft />
-        Kembali
+        <ArrowLeft className="w-5 h-5" />
+        <span className="font-medium">Kembali</span>
       </button>
 
       {/* 🟢 Hero Section */}
-      <section className="bg-linear-to-br from-green-600 to-green-800 text-white py-23 md:py-26 px-4">
+      <section className="bg-gradient-to-br from-green-600 to-green-800 text-white py-20 md:py-24 px-4">
         <div className="max-w-6xl mx-auto text-center">
           <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold mb-4 md:mb-6">
             Event Maimilah
@@ -166,14 +199,14 @@ export default function EventPage() {
       </section>
 
       {/* 🧭 Search & Filter Section */}
-      <section className="py-3 md:py-5 px-4 bg-white border-b sticky top-0 z-10 shadow-sm">
+      <section className="py-4 md:py-5 px-4 bg-white border-b sticky top-0 z-40 shadow-sm">
         <div className="max-w-6xl mx-auto flex flex-col md:flex-row gap-3 md:gap-4">
           {/* Search Bar */}
           <div className="flex-1 relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-5 h-5" />
             <input
               type="text"
-              placeholder="Cari event berdasarkan judul, deskripsi, atau lokasi..."
+              placeholder="Cari event berdasarkan judul, deskripsi, lokasi, atau benefit..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg text-black focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent"
@@ -186,7 +219,7 @@ export default function EventPage() {
               <button
                 key={t}
                 onClick={() => setFilter(t)}
-                className={`px-4 md:px-6 py-2.5 md:py-3  rounded-lg font-medium transition-all whitespace-nowrap text-sm md:text-base ${
+                className={`px-4 md:px-6 py-2.5 md:py-3 rounded-lg font-medium transition-all whitespace-nowrap text-sm md:text-base ${
                   filter === t
                     ? "bg-green-600 text-white shadow-lg"
                     : "bg-gray-100 text-gray-700 hover:bg-gray-200"
@@ -200,7 +233,7 @@ export default function EventPage() {
       </section>
 
       {/* 🧩 Event Grid */}
-      <section className="py-12 px-4 bg-gray-50">
+      <section className="py-12 px-4 bg-gray-50 min-h-screen">
         <div className="max-w-6xl mx-auto">
           {filteredEvents.length === 0 ? (
             <div className="text-center py-20">
@@ -211,7 +244,7 @@ export default function EventPage() {
               <p className="text-gray-600">
                 {searchQuery
                   ? "Coba ubah kata kunci pencarian Anda"
-                  : "Coming Soon!"}
+                  : "Event menarik akan segera hadir!"}
               </p>
               {searchQuery && (
                 <button
@@ -224,20 +257,23 @@ export default function EventPage() {
             </div>
           ) : (
             <>
-              <div className="mb-6">
-                <h2 className="text-2xl font-bold text-gray-800">
-                  {filter === "all" && `Semua Event (${filteredEvents.length})`}
-                  {filter === "active" &&
-                    `Event Aktif (${filteredEvents.length})`}
-                  {filter === "past" &&
-                    `Event Selesai (${filteredEvents.length})`}
-                </h2>
-                {searchQuery && (
-                  <p className="text-gray-600 mt-2">
-                    Hasil pencarian untuk:{" "}
-                    <span className="font-semibold">{searchQuery}</span>
-                  </p>
-                )}
+              <div className="mb-6 flex items-center justify-between">
+                <div>
+                  <h2 className="text-2xl font-bold text-gray-800">
+                    {filter === "all" &&
+                      `Semua Event (${filteredEvents.length})`}
+                    {filter === "active" &&
+                      `Event Aktif (${filteredEvents.length})`}
+                    {filter === "past" &&
+                      `Event Selesai (${filteredEvents.length})`}
+                  </h2>
+                  {searchQuery && (
+                    <p className="text-gray-600 mt-2">
+                      Hasil pencarian untuk:{" "}
+                      <span className="font-semibold">{searchQuery}</span>
+                    </p>
+                  )}
+                </div>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -253,6 +289,14 @@ export default function EventPage() {
           )}
         </div>
       </section>
+
+      {/* Loading Indicator saat auto-refresh */}
+      {isLoading && events.length > 0 && (
+        <div className="fixed bottom-4 right-4 bg-white shadow-lg rounded-lg px-4 py-2 border border-gray-200 flex items-center gap-2 z-50 animate-fade-in">
+          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-green-500"></div>
+          <span className="text-sm text-gray-600">Memperbarui data...</span>
+        </div>
+      )}
     </main>
   );
 }

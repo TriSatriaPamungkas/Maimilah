@@ -17,35 +17,44 @@ const transporter = nodemailer.createTransport({
   socketTimeout: 10000,
 });
 
+interface ShiftDetail {
+  date: string;
+  startTime: string;
+  endTime: string;
+}
+
 interface VolunteerConfirmationData {
   name: string;
   email: string;
   eventName: string;
   eventLocation: string;
-  selectedDates: string[];
+  selectedShifts: ShiftDetail[]; // Format with shift details
 }
 
 export async function sendVolunteerConfirmation(
   data: VolunteerConfirmationData
 ) {
-  const { name, email, eventName, eventLocation, selectedDates } = data;
+  const { name, email, eventName, eventLocation, selectedShifts } = data;
 
-  // Format tanggal untuk tabel
-  const dateRows = selectedDates
+  // Format tabel dengan shift waktu
+  const shiftRows = selectedShifts
     .map(
-      (date, index) => `
+      (shift, index) => `
     <tr>
       <td style="border: 1px solid #ddd; padding: 12px; text-align: center; background-color: ${
         index % 2 === 0 ? "#f9f9f9" : "#ffffff"
       };">${index + 1}</td>
       <td style="border: 1px solid #ddd; padding: 12px;">${new Date(
-        date
+        shift.date
       ).toLocaleDateString("id-ID", {
         weekday: "long",
         year: "numeric",
         month: "long",
         day: "numeric",
       })}</td>
+      <td style="border: 1px solid #ddd; padding: 12px; text-align: center; font-weight: 500; color: #059669;">
+        ${shift.startTime} - ${shift.endTime}
+      </td>
     </tr>
   `
     )
@@ -100,12 +109,13 @@ export async function sendVolunteerConfirmation(
             <table style="width: 100%; border-collapse: collapse; background-color: white; border-radius: 5px; overflow: hidden;">
               <thead>
                 <tr>
-                  <th style="background-color: #10b981; color: white; padding: 15px; text-align: center; font-weight: 600; width: 80px;">No</th>
+                  <th style="background-color: #10b981; color: white; padding: 15px; text-align: center; font-weight: 600; width: 60px;">No</th>
                   <th style="background-color: #10b981; color: white; padding: 15px; text-align: left; font-weight: 600;">Tanggal</th>
+                  <th style="background-color: #10b981; color: white; padding: 15px; text-align: center; font-weight: 600; width: 160px;">Shift</th>
                 </tr>
               </thead>
               <tbody>
-                ${dateRows}
+                ${shiftRows}
               </tbody>
             </table>
           </div>
@@ -113,7 +123,7 @@ export async function sendVolunteerConfirmation(
           <!-- Info Box -->
           <div style="background-color: #dbeafe; border: 1px solid #93c5fd; padding: 15px; border-radius: 5px; margin: 25px 0;">
             <p style="margin: 0; font-size: 14px; color: #1e40af; line-height: 1.5;">
-              💡 <strong>Catatan Penting:</strong> Mohon simpan email ini sebagai referensi. Kami akan mengirimkan informasi lebih lanjut menjelang hari event melalui  WhatsApp yang telah Anda daftarkan.
+              💡 <strong>Catatan Penting:</strong> Mohon simpan email ini sebagai referensi. Kami akan mengirimkan informasi lebih lanjut menjelang hari event melalui WhatsApp yang telah Anda daftarkan.
             </p>
           </div>
           
